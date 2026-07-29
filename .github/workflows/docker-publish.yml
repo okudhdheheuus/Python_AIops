@@ -20,7 +20,7 @@ jobs:
             dockerfile: Dockerfile
           - name: frontend
             context: ./frontend-next
-            dockerfile: frontend-next/Dockerfile
+            dockerfile: Dockerfile
 
     steps:
       - uses: actions/checkout@v4
