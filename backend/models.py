@@ -198,3 +198,28 @@ class NotificationChannel(Base):
     sign_secret = Column(String(200), nullable=True)  # 钉钉/飞书加签密钥
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserLLMConfig(Base):
+    """用户 LLM 配置 —— 留空字段回退到全局设置"""
+    __tablename__ = "user_llm_configs"
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    user_id = Column(String(36), nullable=False, unique=True)
+    provider = Column(String(20), default="deepseek")
+    api_key = Column(String(200), nullable=True)
+    api_base = Column(String(300), nullable=True)
+    model = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class UserAgentConfig(Base):
+    """用户 Agent 偏好"""
+    __tablename__ = "user_agent_configs"
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    user_id = Column(String(36), nullable=False, unique=True)
+    active_agents = Column(Text, nullable=True)  # JSON array
+    default_agent = Column(String(50), default="generic")
+    preferences = Column(Text, nullable=True)  # JSON object
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

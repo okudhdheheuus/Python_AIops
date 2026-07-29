@@ -15,10 +15,10 @@ from .base import BaseLLMProvider
 
 logger = logging.getLogger("itops")
 class DeepSeekProvider(BaseLLMProvider):
-    def __init__(self):
-        self.api_key = settings.deepseek_api_key
-        self.api_base = settings.deepseek_api_base.rstrip("/")
-        self.model = settings.deepseek_model
+    def __init__(self, api_key: str | None = None, api_base: str | None = None, model: str | None = None):
+        self.api_key = api_key or settings.deepseek_api_key
+        self.api_base = (api_base or settings.deepseek_api_base).rstrip("/")
+        self.model = model or settings.deepseek_model
         self._client: httpx.AsyncClient | None = None
 
     def get_provider_name(self) -> str:

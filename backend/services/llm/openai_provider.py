@@ -17,10 +17,10 @@ from .base import BaseLLMProvider
 logger =  logging.getLogger("itops")
 
 class OpenAIProvider(BaseLLMProvider):
-    def __init__(self):
-        self.api_key = settings.openai_api_key
-        self.api_base = settings.openai_api_base.rstrip("/")
-        self.model = settings.openai_model
+    def __init__(self, api_key: str | None = None, api_base: str | None = None, model: str | None = None):
+        self.api_key = api_key or settings.openai_api_key
+        self.api_base = (api_base or settings.openai_api_base).rstrip("/")
+        self.model = model or settings.openai_model
         self._client: httpx.AsyncClient | None = None
 
     def get_provider_name(self) -> str:

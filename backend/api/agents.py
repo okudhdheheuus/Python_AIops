@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_db
-from ..models import Server, User
+from ..database import AsyncSessionLocal, get_db
+from ..models import Server, User, UserLLMConfig
 from ..schemas import AgentExecuteRequest
 from ..services.agent_executor import AgentExecutor
 from ..utils.security import get_current_active_user
@@ -36,7 +36,15 @@ async def execute_agent(
     db: AsyncSession = Depends(get_db),
 ):
     """执行指定的Agent"""
-    executor = AgentExecutor()
+    # 加载用户LLM配置
+    user_llm_config = None
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(UserLLMConfig).where(UserLLMConfig.user_id == current_user.id)
+        )
+        user_llm_config = result.scalar_one_or_none()
+
+    executor = AgentExecutor(user_llm_config=user_llm_config)
 
     # 如果指定了server_msg(instance格式)，自动查找server_id
     server_id = req.server_id

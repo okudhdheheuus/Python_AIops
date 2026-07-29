@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Server, Bell, MessageSquare, Activity, LogOut, User, Bot, Workflow, BookOpen, FileText, BellRing, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Server, Bell, MessageSquare, Activity, LogOut, User, Bot, Workflow, BookOpen, FileText, BellRing, ShieldCheck, Settings } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 const links = [
@@ -50,6 +50,17 @@ export default function Sidebar() {
               <User size={16} />
               {user?.username}
             </div>
+            <Link
+              href="/settings"
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
+                pathname === "/settings"
+                  ? "bg-blue-600/20 text-blue-400"
+                  : "text-gray-400 hover:text-white hover:bg-gray-700/50"
+              }`}
+            >
+              <Settings size={16} />
+              用户设置
+            </Link>
             <button
               onClick={logout}
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700/50 w-full transition"

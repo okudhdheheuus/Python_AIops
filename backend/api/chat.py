@@ -5,9 +5,10 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 
 from ..core.logging import request_id_var
-from ..models import User
+from ..models import User, UserLLMConfig
 from ..services.chat_service import (
     delete_session,
     get_session,
@@ -19,6 +20,16 @@ from ..utils.security import get_current_active_user
 
 router = APIRouter()
 logger = logging.getLogger("itops")
+
+
+async def _load_user_llm_config(user_id: str) -> UserLLMConfig | None:
+    from ..database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(UserLLMConfig).where(UserLLMConfig.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
 
 
 @router.get("/sessions")
@@ -61,8 +72,10 @@ async def send_message(
     # 获取历史消息
     history = await get_session(session_id) if body.get("session_id") else []
     history.append({"role": "user", "content": user_message})
+    # 加载用户LLM配置
+    user_llm_config = await _load_user_llm_config(current_user.id)
     # 选择provider
-    provider = get_llm_provider()
+    provider = get_llm_provider(user_llm_config)
     async def event_stream():
         full_response = ""
         try:

@@ -35,6 +35,9 @@ DANGEROUS_PATTERNS = [
 class AgentExecutor:
     """多Agent执行器 — AI驱动命令生成 + SSH执行 + AI分析"""
 
+    def __init__(self, user_llm_config=None):
+        self.user_llm_config = user_llm_config
+
     AGENT_DESCRIPTIONS = {
         "generic": "通用IT运维助手",
         "diagnostic": "服务器故障诊断专家",
@@ -172,7 +175,7 @@ class AgentExecutor:
             handler = getattr(self, f"_handle_{agent_type}", None)
             if handler:
                 return await handler(input_text, server_id, server_msg, timeout)
-            answer = await call_llm(input_text, temperature=0.7)
+            answer = await call_llm(input_text, temperature=0.7, user_llm_config=self.user_llm_config)
             return {"output": answer, "agent": agent_type}
         except Exception as e:
             logger.exception(f"Agent执行失败 [{agent_type}]")
@@ -349,7 +352,7 @@ class AgentExecutor:
             f"just the commands. The block MUST be closed with ```. "
             f"Do NOT include explanations, markdown headers, or commentary."
         )
-        llm_response = await call_llm(gen_full_prompt, temperature=0.2, max_tokens=4096)
+        llm_response = await call_llm(gen_full_prompt, temperature=0.2, max_tokens=4096, user_llm_config=self.user_llm_config)
         logger.info(f"[AI命令生成] agent={agent_type} response_len={len(llm_response)}")
         commands = self._extract_commands(llm_response)
 
@@ -415,7 +418,7 @@ class AgentExecutor:
             f"Command output:\n{output_for_analysis}\n\n"
             f"{analysis_prompt}"
         )
-        analysis = await call_llm(analysis_full_prompt, temperature=0.4, max_tokens=4096)
+        analysis = await call_llm(analysis_full_prompt, temperature=0.4, max_tokens=4096, user_llm_config=self.user_llm_config)
 
         return {
             "status": "success" if exit_code == 0 else "partial",
@@ -526,7 +529,7 @@ class AgentExecutor:
             "You are an alert analysis expert. Evaluate the severity, urgency, and potential impact "
             "of the given alert. Suggest the appropriate response priority (P0-P4) and recommended actions."
         )
-        answer = await call_llm(f"{context}\n\nAlert to analyze: {input_text}", system_prompt, temperature=0.4)
+        answer = await call_llm(f"{context}\n\nAlert to analyze: {input_text}", system_prompt, temperature=0.4, user_llm_config=self.user_llm_config)
         return {"output": answer, "agent": "alert_analyzer"}
 
     async def _handle_change_executor(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
@@ -535,7 +538,7 @@ class AgentExecutor:
             "that includes: pre-change checks, step-by-step execution commands, "
             "verification steps, and a rollback plan. Format in Markdown."
         )
-        plan = await call_llm(input_text, system_prompt, temperature=0.3)
+        plan = await call_llm(input_text, system_prompt, temperature=0.3, user_llm_config=self.user_llm_config)
         return {
             "output": plan,
             "agent": "change_executor",
@@ -556,7 +559,7 @@ class AgentExecutor:
             "IT operations documentation based on the provided information. Format in Markdown."
         )
         full_prompt = f"{server_info}\n\nRequest: {input_text}"
-        answer = await call_llm(full_prompt, system_prompt, temperature=0.6)
+        answer = await call_llm(full_prompt, system_prompt, temperature=0.6, user_llm_config=self.user_llm_config)
         return {"output": answer, "agent": "doc_generator"}
 
     async def _handle_generic(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
@@ -581,7 +584,7 @@ class AgentExecutor:
             "commands the user should run, or ask them to select a server in the UI."
         )
         full_prompt = f"{rag_context}\n\nQuestion: {input_text}" if rag_context else input_text
-        answer = await call_llm(full_prompt, system_prompt, temperature=0.7)
+        answer = await call_llm(full_prompt, system_prompt, temperature=0.7, user_llm_config=self.user_llm_config)
         return {"output": answer, "agent": "generic"}
 
     # ===== 辅助方法 =====

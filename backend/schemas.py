@@ -189,6 +189,70 @@ class RemediationPolicyOut(BaseModel):
         return value
 
 
+# ── 用户 LLM 配置 ──
+class UserLLMConfigUpdate(BaseModel):
+    provider: str = "deepseek"
+    api_key: str | None = None
+    api_base: str | None = None
+    model: str | None = None
+
+
+class UserLLMConfigOut(BaseModel):
+    id: str
+    user_id: str
+    provider: str
+    api_key: str | None = None
+    api_base: str | None = None
+    model: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── 用户 Agent 配置 ──
+VALID_AGENT_TYPES = {
+    "generic", "monitor", "diagnostic", "remediation",
+    "alert_analyzer", "log_analyzer", "change_executor",
+    "doc_generator", "compliance_checker",
+}
+
+
+class UserAgentConfigUpdate(BaseModel):
+    active_agents: list[str] | None = None
+    default_agent: str = "generic"
+    preferences: dict | None = None
+
+    @field_validator("active_agents")
+    @classmethod
+    def validate_agent_types(cls, v):
+        if v is not None:
+            for agent in v:
+                if agent not in VALID_AGENT_TYPES:
+                    raise ValueError(f"Invalid agent type: {agent}")
+        return v
+
+
+class UserAgentConfigOut(BaseModel):
+    id: str
+    user_id: str
+    active_agents: list[str] | None = None
+    default_agent: str
+    preferences: dict | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("active_agents", "preferences", mode="before")
+    @classmethod
+    def parse_json(cls, value):
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except (TypeError, json.JSONDecodeError):
+                return None
+        return value
+
+
 
 
 

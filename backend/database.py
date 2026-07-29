@@ -64,6 +64,35 @@ async def ensure_sqlite_columns():
                 conn.execute(f"ALTER TABLE remediation_policies ADD COLUMN {col_name} {col_type}")
                 conn.commit()
                 logging.getLogger("itops").info(f"Database: added missing column remediation_policies.{col_name}")
+        # user_llm_configs 新表
+        try:
+            conn.execute("""CREATE TABLE IF NOT EXISTS user_llm_configs (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id VARCHAR(36) NOT NULL UNIQUE,
+                provider VARCHAR(20) DEFAULT 'deepseek',
+                api_key VARCHAR(200),
+                api_base VARCHAR(300),
+                model VARCHAR(100),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP
+            )""")
+            conn.commit()
+        except Exception:
+            pass
+        # user_agent_configs 新表
+        try:
+            conn.execute("""CREATE TABLE IF NOT EXISTS user_agent_configs (
+                id VARCHAR(36) PRIMARY KEY,
+                user_id VARCHAR(36) NOT NULL UNIQUE,
+                active_agents TEXT,
+                default_agent VARCHAR(50) DEFAULT 'generic',
+                preferences TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP
+            )""")
+            conn.commit()
+        except Exception:
+            pass
     finally:
         conn.close()
 

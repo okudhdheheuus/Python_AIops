@@ -19,6 +19,7 @@ from .api import (
     patrol,
     remediation,
     servers,
+    user_config,
     workflows,
 )
 from .config import settings
@@ -139,6 +140,7 @@ app.include_router(chat.router,prefix="/api/chat",tags=["AI聊天"])
 app.include_router(audit.router, prefix="/api/audit", tags=["审计日志"])
 app.include_router(knowledge.router, prefix="/api/knowledge", tags=["知识库"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["通知管理"])
+app.include_router(user_config.router, prefix="/api/user", tags=["用户配置"])
 
 @app.get("/health")
 async def health_legacy():
