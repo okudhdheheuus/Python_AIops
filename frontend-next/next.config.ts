@@ -10,15 +10,15 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:8000/api/:path*",
+        destination: `http://${process.env.BACKEND_HOST || "localhost"}:8000/api/:path*`,
       },
       {
         source: "/health/:path*",
-        destination: "http://localhost:8000/health/:path*",
+        destination: `http://${process.env.BACKEND_HOST || "localhost"}:8000/health/:path*`,
       },
       {
         source: "/metrics",
-        destination: "http://localhost:8000/metrics",
+        destination: `http://${process.env.BACKEND_HOST || "localhost"}:8000/metrics`,
       },
     ];
   },

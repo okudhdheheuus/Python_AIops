@@ -45,6 +45,8 @@ services:
     image: crpi-0pts6ks97slw904m.cn-chengdu.personal.cr.aliyuncs.com/itops/itops-frontend:main
     ports:
       - "3000:3000"
+    environment:
+      BACKEND_HOST: backend
     depends_on:
       - backend
     restart: unless-stopped
