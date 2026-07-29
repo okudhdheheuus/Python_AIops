@@ -1,0 +1,18 @@
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: itops-platform
+nodes:
+  # 控制平面
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080 # NodePort 映射到主机30080（前端）
+        hostPort: 30080
+        protocol: TCP
+      - containerPort: 30081 # NodePort 映射到主机30081（后端）
+        hostPort: 30081
+        protocol: TCP
+  # Worker 节点
+  - role: worker
+  - role: worker
+

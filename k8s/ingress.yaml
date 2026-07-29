@@ -1,0 +1,41 @@
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: itops-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120" # SSE长连接
+    nginx.ingress.kubernetes.io/proxy-buffering: "off" # 流式传输
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000

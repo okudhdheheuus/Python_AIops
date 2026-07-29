@@ -1,0 +1,110 @@
+# ==========全局配置==========
+global:
+  environment: production
+  imagePullPolicy: IfNotPresent
+
+# ======PostgreSQL============
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  auth:
+    username: itops
+    password: itops123
+    database: itops
+  persistence:
+    enabled: true
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+# ===== Redis =====
+redis:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: redis
+    tag: "7-alpine"
+  maxmemory: "256mb"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# ===== Backend =====
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: itops-backend
+    tag: latest
+  service:
+    port: 8000
+  logLevel: info
+  logFormat: json
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  # 健康检查
+  livenessProbe:
+    path: /health/live
+    initialDelaySeconds: 30
+    periodSeconds: 15
+  readinessProbe:
+    path: /health/ready
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  startupProbe:
+    path: /health/startup
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 12
+
+# ===== Frontend =====
+frontend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: itops-frontend
+    tag: latest
+  service:
+    port: 3000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+# ===== Ingress =====
+ingress:
+  enabled: true
+  className: nginx
+  host: itops.local
+
+# ===== Secrets（不要在这里存真实密码，通过 --set 或 sealed-secrets 管理）=====
+secrets:
+  secretKey: "change-me-in-production"
+  llmProvider: "openai"
+  deepseekApiKey: ""
+  openaiApiKey: "XXX"
+  openaiApiBase: "https://open.bigmodel.cn/api/paas/v4"
+  openaiModel: "glm-4.7-flash"
+
+
+
+
+
+

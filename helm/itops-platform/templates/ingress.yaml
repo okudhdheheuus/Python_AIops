@@ -1,0 +1,43 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "itops.fullname" . }}-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "itops.fullname" . }}-backend
+                port:
+                  number: {{ .Values.backend.service.port }}
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "itops.fullname" . }}-backend
+                port:
+                  number: {{ .Values.backend.service.port }}
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "itops.fullname" . }}-backend
+                port:
+                  number: {{ .Values.backend.service.port }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "itops.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.frontend.service.port }}
+{{- end }}

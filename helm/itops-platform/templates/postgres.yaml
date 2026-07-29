@@ -1,0 +1,74 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "itops.fullname" . }}-postgres-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.postgres.persistence.size }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "itops.fullname" . }}-postgres-secret
+type: Opaque
+stringData:
+  POSTGRES_USER: {{.Values.postgres.auth.username | quote}}
+  POSTGRES_PASSWORD: {{ .Values.postgres.auth.password | quote}}
+  POSTGRES_DB: {{ .Values.postgres.auth.database | quote}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "itops.fullname" . }}-postgres
+spec:
+  selector:
+    app: {{ include "itops.fullname" . }}-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "itops.fullname" . }}-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "itops.fullname" . }}-postgres
+  template:
+    metadata:
+      labels:
+        app: {{ include "itops.fullname" . }}-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: {{ include "itops.fullname" . }}-postgres-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "itops"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "itops"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "itops.fullname" . }}-postgres-pvc
+{{- end }}

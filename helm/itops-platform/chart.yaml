@@ -1,0 +1,15 @@
+apiVersion: v2
+name: itops-platform
+description: ITOps Platform - 智能运维管理平台 Helm Chart
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+  - itops
+  - monitoring
+  - ai
+  - devops
+maintainers:
+  - name: Your Name
+    email: your.email@example.com
+

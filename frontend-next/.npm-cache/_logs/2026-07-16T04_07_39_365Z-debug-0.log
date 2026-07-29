@@ -1,0 +1,52 @@
+0 verbose cli D:\DevelpTools\nodejs\node.exe D:\DevelpTools\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.2.4
+2 info using node@v20.11.0
+3 timing npm:load:whichnode Completed in 3ms
+4 timing config:load:defaults Completed in 7ms
+5 timing config:load:file:D:\DevelpTools\nodejs\node_modules\npm\npmrc Completed in 4ms
+6 timing config:load:builtin Completed in 4ms
+7 timing config:load:cli Completed in 3ms
+8 timing config:load:env Completed in 1ms
+9 timing config:load:file:D:\CodeTest\Git_hub\python-itops-platform\frontend-next\.npmrc Completed in 0ms
+10 timing config:load:project Completed in 3ms
+11 timing config:load:file:C:\Users\57718\.npmrc Completed in 1ms
+12 timing config:load:user Completed in 1ms
+13 timing config:load:file:D:\DevelpTools\nodejs\node_global\etc\npmrc Completed in 1ms
+14 timing config:load:global Completed in 1ms
+15 timing config:load:setEnvs Completed in 1ms
+16 timing config:load Completed in 21ms
+17 timing npm:load:configload Completed in 21ms
+18 timing config:load:flatten Completed in 3ms
+19 timing npm:load:mkdirpcache Completed in 1ms
+20 timing npm:load:mkdirplogs Completed in 1ms
+21 verbose title npm outdated next react-dom @types/react-dom eslint-config-next eslint @types/node @types/react react typescript @tailwindcss/postcss tailwindcss
+22 verbose argv "outdated" "--json" "next" "react-dom" "@types/react-dom" "eslint-config-next" "eslint" "@types/node" "@types/react" "react" "typescript" "@tailwindcss/postcss" "tailwindcss"
+23 timing npm:load:setTitle Completed in 1ms
+24 timing npm:load:display Completed in 2ms
+25 verbose logfile logs-max:10 dir:D:\CodeTest\Git_hub\python-itops-platform\frontend-next\.npm-cache\_logs\2026-07-16T04_07_39_365Z-
+26 verbose logfile D:\CodeTest\Git_hub\python-itops-platform\frontend-next\.npm-cache\_logs\2026-07-16T04_07_39_365Z-debug-0.log
+27 timing npm:load:logFile Completed in 47ms
+28 timing npm:load:timers Completed in 0ms
+29 timing npm:load:configScope Completed in 0ms
+30 timing npm:load Completed in 132ms
+31 silly logfile done cleaning log files
+32 timing arborist:ctor Completed in 1ms
+33 timing arborist:ctor Completed in 0ms
+34 http fetch GET 200 https://registry.npmmirror.com/npm 1591ms (cache miss)
+35 http fetch GET 200 https://registry.npmmirror.com/@types%2freact-dom 1079ms (cache miss)
+36 http fetch GET 200 https://registry.npmmirror.com/eslint 1204ms (cache miss)
+37 http fetch GET 200 https://registry.npmmirror.com/eslint 1235ms (cache miss)
+38 http fetch GET 200 https://registry.npmmirror.com/eslint 1299ms (cache miss)
+39 http fetch GET 200 https://registry.npmmirror.com/eslint 1551ms (cache miss)
+40 http fetch GET 200 https://registry.npmmirror.com/eslint 1787ms (cache miss)
+41 http fetch GET 200 https://registry.npmmirror.com/eslint 1897ms (cache miss)
+42 http fetch GET 200 https://registry.npmmirror.com/eslint 1911ms (cache miss)
+43 http fetch GET 200 https://registry.npmmirror.com/eslint 1975ms (cache miss)
+44 http fetch GET 200 https://registry.npmmirror.com/eslint 1987ms (cache miss)
+45 http fetch GET 200 https://registry.npmmirror.com/eslint 2065ms (cache miss)
+46 http fetch GET 200 https://registry.npmmirror.com/eslint 2108ms (cache miss)
+47 http fetch GET 200 https://registry.npmmirror.com/eslint 2148ms (cache miss)
+48 http fetch GET 200 https://registry.npmmirror.com/@types%2freact 2159ms (cache miss)
+49 http fetch GET 200 https://registry.npmmirror.com/eslint 2183ms (cache miss)
+50 http fetch GET 200 https://registry.npmmirror.com/@types%2freact 2270ms (cache miss)
+51 http fetch GET 200 https://registry.npmmirror.com/@tailwindcss%2fpostcss 2740ms (cache miss)

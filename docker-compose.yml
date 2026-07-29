@@ -1,0 +1,115 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: itops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: itops
+      POSTGRES_PASSWORD: itops123
+      POSTGRES_DB: itops
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itops -d itops"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - itops-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: itops-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - itops-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: itops-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://itops:itops123@postgres:5432/itops
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_FORMAT=json
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=production
+      - CORS_ORIGINS=http://localhost:3000
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-XXX}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-https://open.bigmodel.cn/api/paas/v4}
+      - OPENAI_MODEL=${OPENAI_MODEL:-glm-4.7-flash}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - itops-net
+
+  frontend:
+    build:
+      context: ./frontend-next
+      dockerfile: Dockerfile
+    container_name: itops-frontend
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - itops-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: itops-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - itops-net
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  itops-net:
+    driver: bridge
