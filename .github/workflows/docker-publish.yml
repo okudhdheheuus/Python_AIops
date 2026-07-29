@@ -16,8 +16,8 @@ jobs:
       matrix:
         image:
           - name: backend
-            context: ./backend
-            dockerfile: Dockerfile
+            context: .
+            dockerfile: backend/Dockerfile
           - name: frontend
             context: ./frontend-next
             dockerfile: Dockerfile
