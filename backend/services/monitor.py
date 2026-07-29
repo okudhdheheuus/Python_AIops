@@ -1,11 +1,12 @@
 import logging
-import asyncio
+
 import httpx
-from datetime import datetime
 from sqlalchemy import select
+
 from ..database import AsyncSessionLocal
 from ..models import Server
 from .agent_executor import AgentExecutor
+
 logger = logging.getLogger("monitor")
 
 # 告警阈值（按序要调整）
@@ -46,7 +47,6 @@ def parse_metrics(stdout:str)->dict:
 # -----单台检查----
 async def check_server(server)->list:
     """复用AgentExecutor采集指标，只做解析和阈值判断"""
-    from .agent_executor import AgentExecutor
     alerts = []
     instance = f"{server.host}:{server.port}"
     # 直接调AgentExecutor采集
@@ -112,7 +112,7 @@ async def run_check():
                 f"{alert_info['summary']}"
             )
             await process_alert(alert_info)
-    logger.info(f"[巡检]结束")
+    logger.info("[巡检]结束")
 
 
 

@@ -1,6 +1,7 @@
 
-from abc import ABC,abstractmethod
-from typing import AsyncIterator
+from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
+
 
 class BaseLLMProvider(ABC):
     """所有 LLM Provider 必须实现此接口"""

@@ -1,11 +1,14 @@
 
 """API 限流 —— 基于Redis的固定窗口计数器 避免攻击者多次访问"""
 import time
-from fastapi import Request,HTTPException
+
+from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from .redis import get_redis
+
 from ..config import settings
 from ..core.logging import request_id_var
+from .redis import get_redis
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """

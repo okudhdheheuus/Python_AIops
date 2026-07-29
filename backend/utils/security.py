@@ -1,18 +1,20 @@
-from fastapi.security import HTTPBearer
-from fastapi.params import Depends
-from fastapi.security import HTTPAuthorizationCredentials
+import hashlib
+from datetime import datetime, timedelta, timezone  # 用于处理日期和时间
+
 # 导入所需的库和模块
 import bcrypt  # 直接使用 bcrypt，替代已停更的 passlib
-from jose import jwt, JWTError  # 用于处理JWT (JSON Web Tokens) 的库
-from datetime import datetime,timedelta  # 用于处理日期和时间
-import hashlib
+from fastapi import HTTPException
+from fastapi.params import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt  # 用于处理JWT (JSON Web Tokens) 的库
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings  # 导入配置模块中的设置
 from ..database import get_db
 from ..models import User
-from fastapi import HTTPException,status
-from sqlalchemy import select
+
+
 def hash_password(password: str) -> str:
     # 先用 SHA-256 哈希，再传给 bcrypt（绕过 72 字节限制）
     prehashed = hashlib.sha256(password.encode('utf-8')).hexdigest()
@@ -22,12 +24,12 @@ def verify_password(plain: str, hashed: str) -> bool:
     prehashed = hashlib.sha256(plain.encode('utf-8')).hexdigest()
     return bcrypt.checkpw(prehashed.encode('utf-8'), hashed.encode('utf-8'))
 
-def create_access_token(data: dict,expires_delta: timedelta = None):
+def create_access_token(data: dict,expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(tz=timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expires_minutes)
+        expire = datetime.now(tz=timezone.utc) + timedelta(minutes=settings.access_token_expires_minutes)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode,settings.secret_key,algorithm=settings.algorithms)
 

@@ -1,15 +1,15 @@
-import json
-import re
 import asyncio
 import logging
+import re
 import time as time_module
-from datetime import datetime
+
 from sqlalchemy import select
+
+from ..database import AsyncSessionLocal
+from ..models import Alert, RemediationLog, RemediationPolicy, Server
+from .knowledge_service import build_rag_context
 from .llm_service import call_llm
 from .ssh_pool import pool
-from .knowledge_service import build_rag_context
-from ..database import AsyncSessionLocal
-from ..models import Server, Alert, RemediationLog, RemediationPolicy
 
 logger = logging.getLogger("itops")
 
@@ -166,7 +166,7 @@ class AgentExecutor:
 
     async def execute(
         self, agent_type: str, input_text: str,
-        server_id: str = None, server_msg: str = None, timeout: int = 30
+        server_id: str | None = None, server_msg: str | None = None, timeout: int = 30
     ) -> dict:
         try:
             handler = getattr(self, f"_handle_{agent_type}", None)
@@ -176,10 +176,10 @@ class AgentExecutor:
             return {"output": answer, "agent": agent_type}
         except Exception as e:
             logger.exception(f"Agent执行失败 [{agent_type}]")
-            return {"status": "error", "output": f"Agent执行失败: {str(e)}", "agent": agent_type, "error": str(e)}
+            return {"status": "error", "output": f"Agent执行失败: {e!s}", "agent": agent_type, "error": str(e)}
 
     async def remediate_alert(
-        self, alert_id: str, server_id: str = None, triggered_by: str = "auto"
+        self, alert_id: str, server_id: str | None = None, triggered_by: str = "auto"
     ) -> dict:
         """
         基于告警的AI自动修复：
@@ -298,7 +298,7 @@ class AgentExecutor:
         triggered_by: str = "auto", status: str = "pending",
         input_text: str = "", command: str = "",
         output: str = "", error_output: str = "",
-        exit_code: int = None, duration_ms: int = None,
+        exit_code: int | None = None, duration_ms: int | None = None,
     ) -> str:
         """写入修复日志，返回日志ID"""
         async with AsyncSessionLocal() as db:
@@ -397,7 +397,7 @@ class AgentExecutor:
         except Exception as e:
             return {
                 "status": "failed",
-                "output": f"SSH执行失败: {str(e)}\n\n执行命令:\n```bash\n{commands}\n```",
+                "output": f"SSH执行失败: {e!s}\n\n执行命令:\n```bash\n{commands}\n```",
                 "agent": agent_type,
                 "commands": commands,
             }
@@ -586,7 +586,7 @@ class AgentExecutor:
 
     # ===== 辅助方法 =====
 
-    async def _get_server(self, server_id: str = None, server_msg: str = None):
+    async def _get_server(self, server_id: str | None = None, server_msg: str | None = None):
         """统一获取Server对象, 返回Server或错误dict"""
         if server_id:
             async with AsyncSessionLocal() as db:
@@ -656,7 +656,7 @@ class AgentExecutor:
         return best_match
 
 
-async def trigger_auto_remediation(alert_id: str, alert_labels: dict, server_id: str = None, triggered_by: str = "auto"):
+async def trigger_auto_remediation(alert_id: str, alert_labels: dict, server_id: str | None = None, triggered_by: str = "auto"):
     """根据告警标签匹配修复策略，自动触发AI修复（供 alerts.py / schedulers.py 调用）"""
     import json as _json
     try:

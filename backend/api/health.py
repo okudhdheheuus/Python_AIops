@@ -1,6 +1,8 @@
 """健康检查端点 ——K8s Liveness/Readiness/Startup 探针"""
 import time
+
 from fastapi import APIRouter
+
 from ..core.redis import check_redis_health
 from ..database import check_db_health
 

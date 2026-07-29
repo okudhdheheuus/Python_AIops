@@ -1,13 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import NotificationChannel, User
-from ..utils.security import get_current_active_user
 from ..services.notification_service import ALLOWED_TYPES, _dispatch
+from ..utils.security import get_current_active_user
 
 router = APIRouter()
 
@@ -179,7 +179,7 @@ async def test_channel(
         f"✅ **ITOps 测试消息**\n\n"
         f"> 渠道名称: {channel.name}\n"
         f"> 渠道类型: {CHANNEL_TYPE_LABELS.get(channel.channel_type, channel.channel_type)}\n"
-        f"> 发送时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"> 发送时间: {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n"
         f"> 状态: 配置正常，消息发送成功！\n"
     )
 
@@ -187,4 +187,4 @@ async def test_channel(
         await _dispatch(channel, test_content)
         return {"status": "success", "message": "测试消息发送成功"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"发送失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"发送失败: {e!s}")

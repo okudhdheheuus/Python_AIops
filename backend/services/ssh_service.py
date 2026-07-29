@@ -1,6 +1,9 @@
 
 import asyncssh
+
 from ..models import Server
+
+
 class SSHService:
     @staticmethod
     async def test_connection(server: Server) -> dict:

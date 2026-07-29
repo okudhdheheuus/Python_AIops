@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
 from ..database import get_db
 from ..models import KnowledgeBase, User
-from ..utils.security import get_current_active_user
 from ..services.knowledge_service import search_knowledge, seed_preset_knowledge
+from ..utils.security import get_current_active_user
 
 router = APIRouter()
 
@@ -25,8 +25,8 @@ async def search(
 @router.get("/entries")
 async def list_entries(
     db: AsyncSession = Depends(get_db),
-    category: str = None,
-    tag: str = None,
+    category: str | None = None,
+    tag: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),

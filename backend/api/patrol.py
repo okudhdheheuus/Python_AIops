@@ -1,20 +1,21 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, Query, APIRouter
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
-from ..models import User, PatrolRecord
-from ..utils.security import get_current_active_user
 from ..database import get_db
+from ..models import PatrolRecord, User
 from ..schemas import PatrolRecord as PatrolRecordSchema
+from ..utils.security import get_current_active_user
+
 router = APIRouter()
 
 @router.get("/records")
 async def list_patrol_records(
     db: AsyncSession = Depends(get_db),
-    server_id: str=None,
-    status: str=None,
+    server_id: str | None=None,
+    status: str | None=None,
     days: int = Query(7,ge=1,le=90),
     page: int = Query(1,ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -22,7 +23,7 @@ async def list_patrol_records(
 ):
     """查询巡检查，最近7天默认"""
     stmt = select(PatrolRecord).order_by(PatrolRecord.checked_at.desc())
-    since = datetime.utcnow()-timedelta(days=days)
+    since = datetime.now(tz=timezone.utc)-timedelta(days=days)
     stmt = stmt.where(PatrolRecord.checked_at>=since)
     if server_id:
         stmt = stmt.where(PatrolRecord.server_id == server_id)
@@ -45,7 +46,7 @@ async def patrol_summary(
     current_user: User = Depends(get_current_active_user),
 ):
     """巡检统计摘要：总次数、成功率、资源使用率趋势"""
-    since = datetime.utcnow()-timedelta(days=days)
+    since = datetime.now(tz=timezone.utc)-timedelta(days=days)
     # 总巡检次数
     total = await db.scalar(
                     select(func.count()).

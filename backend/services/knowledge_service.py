@@ -1,7 +1,9 @@
 """知识库服务 —— 基于关键词的RAG检索增强生成"""
 
 import logging
-from sqlalchemy import select, or_
+
+from sqlalchemy import or_, select
+
 from ..database import AsyncSessionLocal
 from ..models import KnowledgeBase
 

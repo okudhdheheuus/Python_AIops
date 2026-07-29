@@ -1,15 +1,19 @@
 import json
-from datetime import datetime
-from fastapi import APIRouter, Depends, Query, HTTPException
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select,func
 
 from ..database import get_db
-from ..schemas import WebhookPayload,AlertOut,AlertUpdate
-from ..models import Alert, Server, User, SilenceRule
-from ..utils.security import get_current_active_user
-from ..services.notification_service import send_notification, send_recovery_notification
+from ..models import Alert, Server, SilenceRule, User
+from ..schemas import AlertOut, AlertUpdate, WebhookPayload
 from ..services.agent_executor import AgentExecutor, trigger_auto_remediation
+from ..services.notification_service import (
+    send_notification,
+    send_recovery_notification,
+)
+from ..utils.security import get_current_active_user
 
 router = APIRouter()
 
@@ -39,7 +43,7 @@ async def receive_alert(payload: WebhookPayload,db:AsyncSession = Depends(get_db
         ).scalar_one_or_none()
         if existing: # 如果已经存在对应报警记录，则根据报警信息更新非关键字段
             existing.summary = summary
-            existing.started_at = datetime.now()
+            existing.started_at = datetime.now(tz=timezone.utc)
             await db.flush()
             results.append({"alert_id":existing.id,"duplicate":True,"server_id":existing.server_id})
             continue
@@ -96,8 +100,8 @@ async def receive_alert(payload: WebhookPayload,db:AsyncSession = Depends(get_db
 @router.get("/alerts")
 async def list_alerts(
     db: AsyncSession = Depends(get_db),
-    severity: str = None,
-    status: str = None,
+    severity: str | None = None,
+    status: str | None = None,
     page: int = Query(1,ge=1),
     page_size: int = Query(20,ge=1,le=100),
 ):
@@ -135,7 +139,7 @@ async def update_alert(alert_id:str,body:AlertUpdate,db:AsyncSession = Depends(g
         raise HTTPException(status_code=404,detail="告警不存在")
     alert.status = body.status
     if body.status == "resolved":
-        alert.resolved_at = datetime.now()
+        alert.resolved_at = datetime.now(tz=timezone.utc)
     await db.commit()
 
     # 告警恢复时发送通知

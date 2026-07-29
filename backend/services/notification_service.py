@@ -8,7 +8,7 @@ import logging
 import smtplib
 import time
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
 
 import httpx
@@ -85,7 +85,7 @@ async def send_recovery_notification(alert_name: str, instance: str, resolved_at
 
 def _format_message(alert_name: str, summary: str, severity: str, instance: str) -> str:
     emoji = {"critical": "🔴", "warning": "🟡", "info": "🔵"}.get(severity, "❓")
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     return (
         f"{emoji} **ITOps 告警通知**\n\n"
         f"> 告警名称: {alert_name}\n"

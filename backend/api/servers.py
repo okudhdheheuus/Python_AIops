@@ -1,18 +1,18 @@
 import csv
 import io
 
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..database import get_db
 from ..models import Server, User
-from ..schemas import ServerCreate, ServerUpdate, ServerOut
+from ..schemas import ServerCreate, ServerOut, ServerUpdate
+from ..services.audit_service import log_audit
+from ..services.ssh_service import SSHService
 from ..utils.security import get_current_active_user
 
-from ..services.ssh_service import SSHService
-from ..services.audit_service import log_audit
 router = APIRouter()
 
 # 创建服务器
@@ -39,12 +39,12 @@ async def create_server(
     return ServerOut.model_validate(new_server)
 
 # 获取所有服务器
-@router.get("/servers",response_model=List[ServerOut])
+@router.get("/servers",response_model=list[ServerOut])
 async def list_servers(
     df: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = Query(default=100, le=500),
-    tag: Optional[str] = None,
+    tag: str | None = None,
     current_user: User = Depends(get_current_active_user)
 ):
     stmt = select(Server).order_by(Server.name)

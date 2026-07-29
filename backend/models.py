@@ -1,8 +1,19 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text, Float  # 定义字段类型
-from sqlalchemy.sql import func # 调用当前时间生成函数
-from .database import Base # 继承数据表基类
-import uuid # 生成唯一随机串
 import enum
+import uuid  # 生成唯一随机串
+
+from sqlalchemy import (  # 定义字段类型
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.sql import func  # 调用当前时间生成函数
+
+from .database import Base  # 继承数据表基类
+
 
 def gen_uuid(): # 用于表唯一ID
     return str(uuid.uuid4())

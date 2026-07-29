@@ -1,18 +1,14 @@
-import json
 import logging
-import time
 
-from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select
+
 from .database import AsyncSessionLocal
-from .models import Server,Alert,PatrolRecord
-from .services.monitor import THRESHOLDS,RULES,check_server,process_alert
-from .services.notification_service import send_notification
+from .models import Alert, PatrolRecord, Server
 from .services.agent_executor import trigger_auto_remediation
-
-
+from .services.monitor import RULES, THRESHOLDS
+from .services.notification_service import send_notification
 
 logger = logging.getLogger("scheduler")
 # 全局调度器实例

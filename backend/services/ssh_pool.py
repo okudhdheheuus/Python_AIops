@@ -1,6 +1,5 @@
 import time
 from contextlib import asynccontextmanager
-from typing import Dict
 
 import asyncssh
 
@@ -8,14 +7,14 @@ import asyncssh
 class SSHConnectionPool:
     "SSH连接池：复用连接,支持并发巡检和修复"
     def __init__(self,max_size: int=30,idle_timeout: int = 300):
-        self.pool: Dict[str,dict] = {}
+        self.pool: dict[str,dict] = {}
         self.max_size = max_size
         self.idle_timeout = idle_timeout # 5分钟无活动自动关闭
     def _key(self,host:str,port:int,username:str)->str:
         return f"{host}:{port}:{username}"
 
     @asynccontextmanager
-    async def get_connection(self,host:str,port:int,username:str,password:str=None,private_key: str=None):
+    async def get_connection(self,host:str,port:int,username:str,password:str | None=None,private_key: str | None=None):
         key = self._key(host,port,username)
 
         # 1. 尝试从池中获取

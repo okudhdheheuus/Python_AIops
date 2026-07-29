@@ -1,7 +1,8 @@
-from contextlib import asynccontextmanager
 import time
+from contextlib import asynccontextmanager
 
-from prometheus_client import Counter,Gauge,Histogram,generate_latest,REGISTRY
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
+
 http_requests_total = Counter(
     "itops_http_requests_total",
     "Total HTTP requests",

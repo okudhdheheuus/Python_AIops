@@ -1,17 +1,21 @@
 """AI 聊天API —— SSE 流式响应 + 会话管理"""
-import uuid
 import json
 import logging
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_db
-from ..models import User
-from ..utils.security import get_current_active_user
-from ..services.llm import get_llm_provider
-from ..services.chat_service import get_session,save_session,delete_session,list_user_sessions
 from ..core.logging import request_id_var
+from ..models import User
+from ..services.chat_service import (
+    delete_session,
+    get_session,
+    list_user_sessions,
+    save_session,
+)
+from ..services.llm import get_llm_provider
+from ..utils.security import get_current_active_user
 
 router = APIRouter()
 logger = logging.getLogger("itops")
@@ -69,7 +73,7 @@ async def send_message(
             history.append({"role": "assistant", "content": full_response})
             await save_session(session_id, history)
             yield f"data: {json.dumps({'type': 'done', 'session_id': session_id}, ensure_ascii=False)}\n\n"
-        except Exception as e:
+        except Exception:
             logger.exception("chat streaming error")
             yield f"data: {json.dumps({'type':'done','session_id':session_id},ensure_ascii=False)}\n\n"
     return StreamingResponse(

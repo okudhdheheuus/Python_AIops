@@ -1,7 +1,7 @@
 import asyncio
-import time
 import logging
-from typing import Dict, List, Any, Optional
+import time
+
 from .agent_executor import AgentExecutor
 
 logger = logging.getLogger("workflow")
@@ -9,7 +9,7 @@ logger = logging.getLogger("workflow")
 
 class NodeResult:
     """单个节点的执行结果"""
-    def __init__(self, node_id: str, status: str, output: str, duration_ms: int, retries: int = 0, error: str = None):
+    def __init__(self, node_id: str, status: str, output: str, duration_ms: int, retries: int = 0, error: str | None = None):
         self.node_id = node_id
         self.status = status  # pending/running/success/failed/timeout/skipped
         self.output = output
@@ -26,11 +26,11 @@ class WorkflowEngine:
 
     async def run_workflow(
         self,
-        workflow_def: Dict,
+        workflow_def: dict,
         initial_input: str = "",
         node_timeout: int = 60,
         max_retries: int = 2,
-    ) -> Dict:
+    ) -> dict:
         nodes = workflow_def.get("nodes", [])
         edges = workflow_def.get("edges", [])
 
@@ -40,8 +40,8 @@ class WorkflowEngine:
         node_map = {n["id"]: n for n in nodes}
         execution_order = self._topological_sort(nodes, edges)
 
-        results: Dict[str, NodeResult] = {}
-        node_inputs: Dict[str, str] = {}
+        results: dict[str, NodeResult] = {}
+        node_inputs: dict[str, str] = {}
 
         for level in execution_order:
             if len(level) == 1:
@@ -85,7 +85,7 @@ class WorkflowEngine:
         }
 
     async def _execute_node(
-        self, node: Dict, input_text: str, timeout: int, max_retries: int
+        self, node: dict, input_text: str, timeout: int, max_retries: int
     ) -> NodeResult:
         """执行单个节点，支持超时和重试"""
         node_id = node.get("id", "unknown")
@@ -98,9 +98,8 @@ class WorkflowEngine:
 
         # 条件分支检查
         condition = node.get("condition")
-        if condition:
-            if not self._evaluate_condition(condition, input_text):
-                return NodeResult(node_id, "skipped", "条件不满足，跳过执行", 0)
+        if condition and not self._evaluate_condition(condition, input_text):
+            return NodeResult(node_id, "skipped", "条件不满足，跳过执行", 0)
 
         last_error = None
         for attempt in range(node_max_retries + 1):
@@ -130,7 +129,7 @@ class WorkflowEngine:
         return NodeResult(node_id, "failed", "", duration_ms, retries=node_max_retries, error=last_error)
 
     def _resolve_input(
-        self, node_id: str, edges: List[Dict], results: Dict[str, NodeResult], initial_input: str
+        self, node_id: str, edges: list[dict], results: dict[str, NodeResult], initial_input: str
     ) -> str:
         """解析节点的输入来源"""
         incoming = [e for e in edges if e.get("target") == node_id]
@@ -142,7 +141,7 @@ class WorkflowEngine:
             return results[source_id].output
         return initial_input
 
-    def _topological_sort(self, nodes: List[Dict], edges: List[Dict]) -> List[List[str]]:
+    def _topological_sort(self, nodes: list[dict], edges: list[dict]) -> list[list[str]]:
         """拓扑排序，返回分层执行顺序（同层可并行）"""
         node_ids = {n["id"] for n in nodes}
         in_degree = {nid: 0 for nid in node_ids}
@@ -158,7 +157,7 @@ class WorkflowEngine:
         levels = []
         queue = [nid for nid in node_ids if in_degree.get(nid, 0) == 0]
         if not queue and node_ids:
-            queue = [list(node_ids)[0]]
+            queue = [next(iter(node_ids))]
 
         while queue:
             levels.append(list(queue))

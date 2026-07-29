@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
 from ..database import get_db
-from ..models import Server, Workflow, User, Alert
+from ..models import Alert, Server, User, Workflow
 from ..schemas import DashboardStats
 from ..utils.security import get_current_active_user
 

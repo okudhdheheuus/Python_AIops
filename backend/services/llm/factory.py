@@ -1,7 +1,7 @@
+from ...config import settings
 from .base import BaseLLMProvider
 from .deepseek_provider import DeepSeekProvider
 from .openai_provider import OpenAIProvider
-from ...config import settings
 
 _providers = {}
 

@@ -1,19 +1,21 @@
 import json
-from typing import Any, Optional
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+
+
 # 创建用户请求模型
 class UserCreate(BaseModel):
     username: str
-    email:Optional[EmailStr] = None
+    email:EmailStr | None = None
     password: str
     role: str = "viewer"
 # 查询返回用户信息模型
 class UserOut(BaseModel):
     id: str
     username: str
-    email: Optional[str]
+    email: str | None
     role: str
     is_active: bool
     model_config = ConfigDict(from_attributes=True)
@@ -36,11 +38,11 @@ class ServerBase(BaseModel):
     host: str
     port: int=22
     username: str
-    password: Optional[str] = None
+    password: str | None = None
     use_ssh_key: bool = False
-    private_key: Optional[str] = None
-    description: Optional[str] = None
-    tags: Optional[str] = None
+    private_key: str | None = None
+    description: str | None = None
+    tags: str | None = None
     enabled: bool = True
 
 # 定义服务器模型创建类
@@ -48,16 +50,16 @@ class ServerCreate(ServerBase):
     pass
 # 定义服务器模型更新类：
 class ServerUpdate(BaseModel):
-    name: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[int] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    use_ssh_key: Optional[bool] = None
-    private_key: Optional[str] = None
-    description: Optional[str] = None
-    tags: Optional[str] = None
-    enabled: Optional[bool] = None
+    name: str | None = None
+    host: str | None = None
+    port: int | None = None
+    username: str | None = None
+    password: str | None = None
+    use_ssh_key: bool | None = None
+    private_key: str | None = None
+    description: str | None = None
+    tags: str | None = None
+    enabled: bool | None = None
 # 定义服务器模型输出类：
 # 定义服务器模型输出类，继承自ServerBase
 class ServerOut(ServerBase):
@@ -66,7 +68,7 @@ class ServerOut(ServerBase):
     # 服务器创建时间
     created_at: datetime
     # 服务器最后更新时间
-    updated_at: Optional[datetime]
+    updated_at: datetime | None
     # 配置ORM模式，支持从ORM对象直接转换
     model_config = ConfigDict(from_attributes=True)
 
@@ -74,8 +76,8 @@ class ServerOut(ServerBase):
 class AgentExecuteRequest(BaseModel):
     agent_type: str = "generic"
     input_text: str
-    server_id: Optional[str] = None
-    server_msg: Optional[str] = None
+    server_id: str | None = None
+    server_msg: str | None = None
 
 # 仪表盘统计
 class DashboardStats(BaseModel):
@@ -89,7 +91,7 @@ class AlertPayload(BaseModel):
     status: str = "firing"
     labels: dict={}
     annotations: dict = {}
-    startsAt: Optional[str] = None
+    startsAt: str | None = None
 class WebhookPayload(BaseModel):
     alerts: list[AlertPayload] = []
 
@@ -100,12 +102,12 @@ class AlertOut(BaseModel):
     severity: str
     status: str
     instance: str
-    server_id: Optional[str] = None
+    server_id: str | None = None
     summary: str
     source: str
-    started_at: Optional[datetime] = None
-    resolved_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
+    started_at: datetime | None = None
+    resolved_at: datetime | None = None
+    created_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 class AlertUpdate(BaseModel):
@@ -120,60 +122,60 @@ class PatrolRecord(BaseModel):
     cpu_usage: float
     memory_usage: float
     disk_usage: float
-    details: Optional[str] = None
-    checked_at: Optional[datetime] = None
+    details: str | None = None
+    checked_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 # 修复日志
 class RemediationLogOut(BaseModel):
     id: str
-    alert_id: Optional[str] = None
-    server_id: Optional[str] = None
+    alert_id: str | None = None
+    server_id: str | None = None
     action: str
-    command: Optional[str] = None
+    command: str | None = None
     triggered_by:str
     status: str
-    input_text: Optional[str] = None
-    output: Optional[str] = None
-    error_output: Optional[str] = None
-    exit_code: Optional[int] = None
-    duration_ms: Optional[int] = None
-    created_at: Optional[datetime]=None
+    input_text: str | None = None
+    output: str | None = None
+    error_output: str | None = None
+    exit_code: int | None = None
+    duration_ms: int | None = None
+    created_at: datetime | None=None
     model_config = ConfigDict(from_attributes=True)
 
 # ---修复策略----
 class RemediationPolicyCreate(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     match_labels: dict = {}
     repair_mode: str = "ai"  # static | ai
-    command: Optional[str] = None  # repair_mode=static 时使用
+    command: str | None = None  # repair_mode=static 时使用
     requires_approval: bool = True
     timeout_seconds: int = 30
     enabled: bool =True
 
 class RemediationPolicyUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    match_labels: Optional[dict] = None
-    repair_mode: Optional[str] = None
-    command: Optional[str] = None
-    requires_approval: Optional[bool] = None
-    timeout_seconds: Optional[int] = None
-    enabled: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    match_labels: dict | None = None
+    repair_mode: str | None = None
+    command: str | None = None
+    requires_approval: bool | None = None
+    timeout_seconds: int | None = None
+    enabled: bool | None = None
 
 class RemediationPolicyOut(BaseModel):
     id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     match_labels: dict[str, Any]
     repair_mode: str = "ai"
-    command: Optional[str] = None
+    command: str | None = None
     requires_approval: bool = True
     timeout_seconds: int
     enabled: bool
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
     @field_validator("match_labels", mode="before")

@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict  # 配置基类
+from pydantic_settings import BaseSettings  # 配置基类
 
 
 class Settings(BaseSettings):

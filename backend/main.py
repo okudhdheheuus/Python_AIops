@@ -1,23 +1,34 @@
 """运维级FastAPI应用入口"""
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse, Response
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.types import Scope, Receive, Send
 
-from .config import settings
-from .core.middleware import RequestIDMiddleware, global_exception_handler
-from .database import engine, Base, ensure_sqlite_columns
-from .schedulers import start_scheduler, shutdown_scheduler
-from .core.logging import setup_logging
-from .core.redis import get_redis, close_redis
-from .core.rate_limit import RateLimitMiddleware
-from .metrics import get_metrics, track_request
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse, Response
+
 from .api import (
-    auth, servers, agents, workflows, dashboard, alerts, patrol, remediation, chat, health,
-    audit, knowledge, notifications
+    agents,
+    alerts,
+    audit,
+    auth,
+    chat,
+    dashboard,
+    health,
+    knowledge,
+    notifications,
+    patrol,
+    remediation,
+    servers,
+    workflows,
 )
+from .config import settings
+from .core.logging import setup_logging
+from .core.middleware import RequestIDMiddleware, global_exception_handler
+from .core.rate_limit import RateLimitMiddleware
+from .core.redis import close_redis, get_redis
+from .database import Base, engine, ensure_sqlite_columns
+from .metrics import get_metrics, track_request
+from .schedulers import shutdown_scheduler, start_scheduler
 
 logger = logging.getLogger("itops")
 # =================应用生命周期=============

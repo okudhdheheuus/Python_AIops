@@ -1,13 +1,15 @@
 import json
 import time
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+
 from ..database import get_db
-from ..models import Workflow, WorkflowExecution, User
-from ..utils.security import get_current_active_user
+from ..models import User, Workflow, WorkflowExecution
 from ..services.agent_executor import AgentExecutor
 from ..services.workflow_engine import WorkflowEngine
+from ..utils.security import get_current_active_user
 
 router = APIRouter()
 
@@ -16,7 +18,7 @@ router = APIRouter()
 @router.get("")
 async def list_workflows(
     db: AsyncSession = Depends(get_db),
-    is_template: bool = None,
+    is_template: bool | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
@@ -135,7 +137,7 @@ async def delete_workflow(
 async def run_workflow(
     workflow_id: str,
     db: AsyncSession = Depends(get_db),
-    body: dict = None,
+    body: dict | None = None,
 ):
     """执行工作流"""
     wf = await db.get(Workflow, workflow_id)

@@ -1,12 +1,13 @@
 """全局中间件 —— 请求 ID 注入 + 统一错误响应 + 请求日志"""
-import uuid
-import time
 import logging
+import time
+import uuid
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from .logging import request_id_var, user_var
+
+from .logging import request_id_var
 
 logger = logging.getLogger("itops")
 

@@ -7,10 +7,10 @@ from ..models import AuditLog
 async def log_audit(
     username: str,
     action: str,
-    resource_type: str = None,
-    resource_id: str = None,
-    detail: str = None,
-    ip_address: str = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    detail: str | None = None,
+    ip_address: str | None = None,
 ):
     """异步写入审计日志（不阻塞主流程）"""
     try:

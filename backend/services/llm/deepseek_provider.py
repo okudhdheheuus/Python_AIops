@@ -1,14 +1,18 @@
 
-import time
 import logging
+import time
+from collections.abc import AsyncIterator
+
 import httpx
-from typing import AsyncIterator
 
-from httpx import AsyncClient
-
-from .base import BaseLLMProvider
 from ...config import settings
-from ...metrics import llm_requests_total,llm_request_duration_seconds,llm_tokens_total
+from ...metrics import (
+    llm_request_duration_seconds,
+    llm_requests_total,
+    llm_tokens_total,
+)
+from .base import BaseLLMProvider
+
 logger = logging.getLogger("itops")
 class DeepSeekProvider(BaseLLMProvider):
     def __init__(self):

@@ -1,12 +1,17 @@
-from fastapi import APIRouter,Depends,HTTPException # 引入APIRouter,Depends,HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 import logging
+
+from fastapi import (  # 引入APIRouter,Depends,HTTPException
+    APIRouter,
+    Depends,
+    HTTPException,
+)
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import User
-from ..schemas import UserOut, UserCreate, Token, LoginRequest
-from ..utils.security import hash_password, verify_password, create_access_token
+from ..schemas import LoginRequest, Token, UserCreate, UserOut
+from ..utils.security import create_access_token, hash_password, verify_password
 
 # 配置日志
 logging.basicConfig(level=logging.DEBUG)
@@ -57,6 +62,6 @@ async def login(login_data:LoginRequest,db: AsyncSession = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Login error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500,detail=f"Internal server error: {str(e)}")
+        logger.exception("Login error")
+        raise HTTPException(status_code=500,detail=f"Internal server error: {e!s}")
 

@@ -1,6 +1,5 @@
 
 import json
-import time
 
 from ..core.redis import get_redis
 
@@ -35,7 +34,7 @@ async def list_user_sessions(username: str)->list[dict]:
     # 使用Redis的SCAN查找该用户的所有会话
     sessions = []
     cursor = 0
-    pattern = f"chat:session:*"
+    pattern = "chat:session:*"
     while True:
         cursor,keys = await r.scan(cursor,match=pattern,count=100)
         for key in keys:

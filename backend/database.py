@@ -1,9 +1,11 @@
 
 import logging
 import os
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+
 from .config import settings
 
 DATABASE_URL = os.getenv("DATABASE_URL",settings.database_url)
@@ -27,7 +29,6 @@ AsyncSessionLocal = async_sessionmaker(
 
 class Base(DeclarativeBase):
     """所有ORM模型的基类"""
-    pass
 async def get_db() -> AsyncSession:
     """FastAPI 依赖注入 —— 每次请求创建一个新的数据库会话"""
     async with AsyncSessionLocal() as session:

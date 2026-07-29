@@ -1,13 +1,17 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from sqlalchemy import select,func
-from ..models import RemediationPolicy,RemediationLog
-from ..schemas import RemediationPolicyOut, RemediationPolicyCreate,\
-    RemediationPolicyUpdate,RemediationLogOut
+from ..models import RemediationLog, RemediationPolicy
+from ..schemas import (
+    RemediationLogOut,
+    RemediationPolicyCreate,
+    RemediationPolicyOut,
+    RemediationPolicyUpdate,
+)
 
 router = APIRouter()
 
@@ -84,8 +88,8 @@ async def test_match(body:dict,db: AsyncSession=Depends(get_db)):
 @router.get("/logs")
 async def list_logs(
     db: AsyncSession = Depends(get_db),
-    status: str = None,
-    server_id: str = None,
+    status: str | None = None,
+    server_id: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
 ):

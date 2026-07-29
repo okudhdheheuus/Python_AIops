@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from ..database import get_db
-from ..models import User, Server
-from ..schemas import AgentExecuteRequest
-from ..utils.security import get_current_active_user
-from ..services.agent_executor import AgentExecutor
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..database import get_db
+from ..models import Server, User
+from ..schemas import AgentExecuteRequest
+from ..services.agent_executor import AgentExecutor
+from ..utils.security import get_current_active_user
 
 router = APIRouter()
 

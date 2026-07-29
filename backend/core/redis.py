@@ -1,4 +1,5 @@
 import redis.asyncio as aioredis
+
 from ..config import settings
 
 # 全局连接池(懒初始化)
