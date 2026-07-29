@@ -59,6 +59,7 @@ jobs:
 
       - name: Run tests
         env:
+          PYTHONPATH: ..
           REDIS_HOST: localhost
           REDIS_PORT: "6379"
           SECRET_KEY: ci-test-secret
