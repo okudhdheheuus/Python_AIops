@@ -2,7 +2,7 @@
 # 构建阶段
 FROM python:3.11-slim AS builder
 WORKDIR /app
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 运行阶段
@@ -14,7 +14,7 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # 复制应用代码
-COPY backend/ ./backend/
+COPY . .
 
 # 非root用户运行（安全加固）
 RUN useradd -m -u 1000 itops && chown -R itops:itops /app
