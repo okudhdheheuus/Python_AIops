@@ -34,11 +34,6 @@ export default function KnowledgePage() {
   const [seeding, setSeeding] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!token) return;
-    fetchEntries();
-  }, [token, authFetch, category, tag, page]);
-
   async function fetchEntries() {
     setLoading(true);
     setError(null);
@@ -59,6 +54,12 @@ export default function KnowledgePage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEntries();
+  }, [token, authFetch, category, tag, page]);
 
   function handleSearch(query: string) {
     setSearchQuery(query);

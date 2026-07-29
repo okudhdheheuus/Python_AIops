@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X, Trash2 } from "lucide-react";
 import { AGENT_TYPES, getAgentDef, type AgentNodeData } from "@/lib/agentTypes";
 
@@ -27,11 +27,7 @@ export default function NodeConfigPanel({
   onDelete,
   onClose,
 }: Props) {
-  const [local, setLocal] = useState<AgentNodeData | null>(null);
-
-  useEffect(() => {
-    setLocal(nodeData);
-  }, [nodeId]);
+  const [local, setLocal] = useState<AgentNodeData | null>(nodeData);
 
   if (!nodeId || !local) return null;
 

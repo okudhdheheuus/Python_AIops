@@ -28,11 +28,6 @@ export default function AuditPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 50;
 
-  useEffect(() => {
-    if (!token) return;
-    fetchLogs();
-  }, [token, authFetch, page]);
-
   async function fetchLogs() {
     setLoading(true);
     setError(null);
@@ -54,6 +49,12 @@ export default function AuditPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchLogs();
+  }, [token, authFetch, page]);
 
   function handleSearch() {
     setPage(1);

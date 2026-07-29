@@ -50,16 +50,15 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install ruff
 
       - name: Lint with ruff
-        run: |
-          pip install ruff
-          ruff check . --ignore E501
+        run: ruff check . --ignore E501
 
       - name: Run tests
         env:
-          DATABASE_URL: postgresql+asyncpg://itops:itops123@localhost:5432/itops
           REDIS_HOST: localhost
           REDIS_PORT: "6379"
           SECRET_KEY: ci-test-secret

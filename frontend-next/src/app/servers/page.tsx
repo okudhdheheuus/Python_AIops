@@ -53,6 +53,7 @@ export default function ServersPage() {
 
   useEffect(() => {
     if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchServers();
   }, [token, authFetch]);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, Play, Terminal, Loader2, Server, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { Bot, Play, Loader2, Server, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 interface AgentType {

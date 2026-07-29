@@ -1,5 +1,7 @@
 """测试配置和共享 fixture"""
 
+import os
+import tempfile
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -8,8 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from backend.main import app
 from backend.database import Base, get_db
 
-import os
-TEST_DB = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./data/test.db")
+TEST_DB = os.getenv("TEST_DATABASE_URL", f"sqlite+aiosqlite:///{tempfile.gettempdir()}/itops_test.db")
 
 
 @pytest_asyncio.fixture(loop_scope="session")

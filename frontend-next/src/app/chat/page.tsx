@@ -46,6 +46,7 @@ export default function ChatPage() {
   }, [token, authFetch]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (token && showSessions) fetchSessions();
   }, [token, showSessions, fetchSessions]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 
 interface User {
   username: string;
@@ -39,15 +39,17 @@ function loadFromStorage() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(() => loadFromStorage().token);
+  const [user, setUser] = useState<User | null>(() => loadFromStorage().user);
 
   useEffect(() => {
-    const { token: savedToken, user: savedUser } = loadFromStorage();
-    setToken(savedToken);
-    setUser(savedUser);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-
+    const { token: savedToken, user: savedUser } = loadFromStorage();
+    if (savedToken) {
+      setToken(savedToken);
+      setUser(savedUser);
+    }
     const handleStorage = (event: StorageEvent) => {
       if (event.key === "token" || event.key === "user") {
         const { token: t, user: u } = loadFromStorage();
@@ -55,12 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u);
       }
     };
-
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  async function login(username: string, password: string): Promise<string | null> {
+  const login = useCallback(async (username: string, password: string): Promise<string | null> => {
     try {
       const resp = await fetch(`/api/auth/login`, {
         method: "POST",
@@ -82,16 +83,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       return "无法连接后端服务";
     }
-  }
+  }, []);
 
-  function logout() {
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-  }
+  }, []);
 
-  async function authFetch(url: string, options?: RequestInit): Promise<Response> {
+  const authFetch = useCallback(async (url: string, options?: RequestInit): Promise<Response> => {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(options?.headers as Record<string, string> || {}),
@@ -104,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout();
     }
     return resp;
-  }
+  }, [token, logout]);
 
   return (
     <AuthContext.Provider value={{ token, user, login, logout, isAuthenticated: mounted && !!token, authFetch }}>

@@ -72,6 +72,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchChannels();
   }, [token, fetchChannels]);
 

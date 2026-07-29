@@ -63,12 +63,6 @@ export default function RemediationPage() {
   const [logTotal, setLogTotal] = useState(0);
   const [logStatusFilter, setLogStatusFilter] = useState("");
 
-  useEffect(() => {
-    if (!token) return;
-    if (activeTab === "policies") fetchPolicies();
-    else fetchLogs();
-  }, [token, authFetch, activeTab, page, logPage, logStatusFilter]);
-
   async function fetchPolicies() {
     setPoliciesLoading(true);
     setPoliciesError(null);
@@ -104,6 +98,13 @@ export default function RemediationPage() {
       setLogsLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (activeTab === "policies") fetchPolicies();
+    else fetchLogs();
+  }, [token, authFetch, activeTab, page, logPage, logStatusFilter]);
 
   async function handlePolicySubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

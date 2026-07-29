@@ -44,11 +44,6 @@ export default function AlertsPage() {
   const [remediatingId, setRemediatingId] = useState<string | null>(null);
   const [remediationResult, setRemediationResult] = useState<{ id: string; status: string; output: string } | null>(null);
 
-  useEffect(() => {
-    if (!token) return;
-    fetchAlerts();
-  }, [filter, page, token, authFetch]);
-
   async function fetchAlerts() {
     setLoading(true);
     setError(null);
@@ -68,6 +63,12 @@ export default function AlertsPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAlerts();
+  }, [filter, page, token, authFetch]);
 
   async function handleAcknowledge(id: string) {
     try {

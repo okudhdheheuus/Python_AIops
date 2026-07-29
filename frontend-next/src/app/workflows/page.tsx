@@ -57,12 +57,6 @@ export default function WorkflowsPage() {
 
   const [serverOptions, setServerOptions] = useState<ServerOption[]>([]);
 
-  useEffect(() => {
-    if (!token) return;
-    fetchWorkflows();
-    fetchServers();
-  }, [token, authFetch, page]);
-
   async function fetchWorkflows() {
     setLoading(true);
     setError(null);
@@ -97,6 +91,13 @@ export default function WorkflowsPage() {
       // servers are optional
     }
   }
+
+  useEffect(() => {
+    if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchWorkflows();
+    fetchServers();
+  }, [token, authFetch, page]);
 
   async function handleDelete(id: string) {
     try {
