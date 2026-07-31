@@ -17,7 +17,7 @@ const links = [
   { href: "/knowledge", label: "知识库", icon: BookOpen },
   { href: "/audit", label: "审计日志", icon: FileText },
   { href: "/notifications", label: "通知管理", icon: BellRing },
-  { href: "/remediation", label: "自动修复", icon: ShieldCheck },
+  { href: "/remediation", label: "修复记录", icon: ShieldCheck },
 ];
 
 export default function Sidebar() {

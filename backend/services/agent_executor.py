@@ -6,7 +6,7 @@ import time as time_module
 from sqlalchemy import select
 
 from ..database import AsyncSessionLocal
-from ..models import Alert, RemediationLog, RemediationPolicy, Server
+from ..models import Alert, RemediationLog, Server
 from .knowledge_service import build_rag_context
 from .llm_service import call_llm
 from .ssh_pool import pool
@@ -1000,44 +1000,12 @@ class AgentExecutor:
 
 
 async def trigger_auto_remediation(alert_id: str, alert_labels: dict, server_id: str | None = None, triggered_by: str = "auto"):
-    """根据告警标签匹配修复策略，自动触发AI修复（供 alerts.py / schedulers.py 调用）"""
-    import json as _json
+    """告警触发后直接走 AI 修复——LLM 分析告警内容，生成修复命令，SSH 执行，写入日志"""
     try:
-        async with AsyncSessionLocal() as db:
-            policies = (await db.execute(
-                select(RemediationPolicy).where(RemediationPolicy.enabled == True)
-            )).scalars().all()
-
-        matched = []
-        for p in policies:
-            try:
-                labels = _json.loads(p.match_labels) if p.match_labels else {}
-            except (_json.JSONDecodeError, TypeError):
-                continue
-            if not labels:
-                continue
-            if all(alert_labels.get(k) == v for k, v in labels.items()):
-                matched.append(p)
-
-        if not matched:
-            return
-
+        logger.info(f"[自动修复] alert={alert_id} severity={alert_labels.get('severity')} server={server_id}")
         executor = AgentExecutor()
-        for policy in matched:
-            if policy.repair_mode == "ai" and not policy.requires_approval:
-                logger.info(f"[自动修复] alert={alert_id} policy={policy.name}")
-                await executor.remediate_alert(
-                    alert_id=alert_id, server_id=server_id, triggered_by=triggered_by
-                )
-            elif policy.repair_mode == "ai" and policy.requires_approval:
-                async with AsyncSessionLocal() as db2:
-                    log_entry = RemediationLog(
-                        alert_id=alert_id, server_id=server_id,
-                        action=f"待审批: {policy.name}",
-                        triggered_by=triggered_by, status="pending",
-                        input_text=f"策略「{policy.name}」匹配，等待管理员审批后执行AI修复",
-                    )
-                    db2.add(log_entry)
-                    await db2.commit()
+        await executor.remediate_alert(
+            alert_id=alert_id, server_id=server_id, triggered_by=triggered_by
+        )
     except Exception:
-        pass
+        logger.exception(f"[自动修复] 执行失败 alert={alert_id}")
