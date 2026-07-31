@@ -9,13 +9,14 @@ logger = logging.getLogger("workflow")
 
 class NodeResult:
     """单个节点的执行结果"""
-    def __init__(self, node_id: str, status: str, output: str, duration_ms: int, retries: int = 0, error: str | None = None):
+    def __init__(self, node_id: str, status: str, output: str, duration_ms: int, retries: int = 0, error: str | None = None, commands: str = ""):
         self.node_id = node_id
         self.status = status  # pending/running/success/failed/timeout/skipped
         self.output = output
         self.duration_ms = duration_ms
         self.retries = retries
         self.error = error
+        self.commands = commands
 
 
 class WorkflowEngine:
@@ -78,7 +79,7 @@ class WorkflowEngine:
 
         return {
             "status": overall_status,
-            "results": {nid: {"status": r.status, "output": r.output, "duration_ms": r.duration_ms, "retries": r.retries, "error": r.error} for nid, r in results.items()},
+            "results": {nid: {"status": r.status, "output": r.output, "duration_ms": r.duration_ms, "retries": r.retries, "error": r.error, "commands": r.commands} for nid, r in results.items()},
             "node_count": len(nodes),
             "completed_count": sum(1 for r in results.values() if r.status == "success"),
             "failed_count": sum(1 for r in results.values() if r.status == "failed"),
@@ -117,7 +118,8 @@ class WorkflowEngine:
                 duration_ms = int((time.perf_counter() - start) * 1000)
                 status = result.get("status", "success") if isinstance(result, dict) else "success"
                 output = result.get("output", str(result)) if isinstance(result, dict) else str(result)
-                return NodeResult(node_id, status, output, duration_ms, retries=attempt)
+                commands = result.get("commands", "") if isinstance(result, dict) else ""
+                return NodeResult(node_id, status, output, duration_ms, retries=attempt, commands=commands)
             except asyncio.TimeoutError:
                 last_error = f"超时({node_timeout}s)"
                 logger.warning(f"[工作流] 节点 {node_id} 第{attempt+1}次执行超时")

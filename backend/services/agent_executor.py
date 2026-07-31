@@ -50,37 +50,43 @@ class AgentExecutor:
         "compliance_checker": "合规检查Agent",
     }
 
-    # 各Agent的"命令生成"角色Prompt —— 强分化，各司其职
+    # 各Agent的"命令生成"角色Prompt —— 强分化，每个Agent的命令完全不重叠
     CMD_GEN_PROMPTS = {
         "monitor": (
-            "You are a hardware metrics collection specialist. "
-            "Your ONLY job: generate commands to read system resource data. "
-            "Collect: CPU usage, CPU temperature (sensors / thermal_zone), memory usage, "
-            "disk space and I/O, network throughput, load average, process count, swap usage. "
-            "Use: top, free, df, iostat, vmstat, sensors, cat /sys/class/thermal/thermal_zone*/temp, "
-            "cat /proc/cpuinfo, cat /proc/meminfo, uptime, sar, mpstat, ss, ps. "
-            "Output raw numbers only — no interpretation, no fixes, no log checks. "
-            "Only use read-only, non-intrusive commands. Never modify anything."
+            "You are a METRICS COLLECTION machine — you ONLY output numbers, nothing else.\n"
+            "Generate commands to capture these 6 metrics exactly (one command per metric):\n"
+            "1. CPU usage %: top -bn1 | awk '/Cpu\\(s\\)/{print $2+$4}'\n"
+            "2. Memory usage %: free | awk '/Mem:/{printf \"%.1f\", $3/$2*100}'\n"
+            "3. Disk usage % for /: df / | awk 'NR==2{print $5}' | tr -d '%'\n"
+            "4. Load average (1min): uptime | awk -F'load average:' '{print $2}' | awk '{print $1}'\n"
+            "5. Top CPU process: ps aux --sort=-%cpu | head -2 | tail -1 | awk '{print $11,$3\"%\"}'\n"
+            "6. Connection states: ss -s | head -1\n"
+            "Use ONLY: top, free, df, uptime, ps, ss. NO sensors, iostat, sar, vmstat.\n"
+            "Each command on its own line. NO comments, NO echo, NO explanations.\n"
+            "Your output will be parsed by a machine — keep it clean."
         ),
         "diagnostic": (
-            "You are a server problem investigator. "
-            "Your ONLY job: generate commands to find the root cause of a specific problem. "
-            "Do NOT just dump all metrics — instead, think about the symptom and hunt for the cause. "
-            "For slow response: check CPU/memory/IO/network bottlenecks, top processes, connection counts. "
-            "For crashes: check dmesg, journalctl errors, coredumps, OOM killer logs. "
-            "For service failure: check systemctl status, dependency chains, config file syntax. "
-            "Structure: 1) quick symptom check 2) drill-down based on initial findings. "
-            "Only use read-only commands — do NOT attempt any repair or restart."
+            "You are a ROOT CAUSE INVESTIGATOR — you hunt down WHY something is broken.\n"
+            "You do NOT collect metrics (monitor does that). You do NOT fix (remediation does that).\n"
+            "Read the user's symptom description. Pick ONE investigation strategy:\n"
+            "  SLOW RESPONSE: top -bn1 -o %CPU | head -5 → iostat -x 1 2 → ss -s → free -h\n"
+            "  CRASH/OOM: dmesg | tail -30 → journalctl -p err -n 50 --no-pager → grep -i oom /var/log/messages | tail -10\n"
+            "  SERVICE DOWN: systemctl status <service> → journalctl -u <service> -n 30 --no-pager → ls -la /etc/systemd/system/<service>*\n"
+            "  HIGH LOAD: uptime → ps aux --sort=-%cpu | head -6 → vmstat 1 3 → ss -tlnp\n"
+            "  UNKNOWN: uptime && echo '---' && free -h && echo '---' && df -h / && echo '---' && dmesg | tail -15\n"
+            "Structure your commands as: 1 quick symptom check → 1 drill-down → 1 confirmation.\n"
+            "MAX 4 commands. Read-only. Each command MUST directly relate to the described symptom."
         ),
         "remediation": (
-            "You are a server repair operator. "
-            "Your ONLY job: generate commands to FIX things — restart services, kill processes, "
-            "cleanup resources, apply configuration changes. "
-            "Focus on process and service management: systemctl restart/stop/start, "
-            "kill/pkill for stuck processes, service reload, config validation. "
-            "Structure EVERY action as: pre-check → repair action → verify success. "
-            "Be conservative: prefer restarting a single service over rebooting, "
-            "prefer reload over restart when possible. Report exact commands for rollback."
+            "You are a REPAIR OPERATOR — you are the ONLY agent authorized to change things.\n"
+            "You will receive diagnostic findings. Your job: generate a SAFE fix.\n"
+            "EVERY response MUST follow this exact 3-command structure:\n"
+            "  1. PRE-CHECK: verify the problem still exists (e.g., ps aux | grep <process>, systemctl is-active <svc>)\n"
+            "  2. REPAIR: the actual fix (systemctl restart <svc>, kill <pid> only if restart fails, du -sh /var/log to suggest cleanup)\n"
+            "  3. VERIFY: confirm the fix worked (systemctl is-active <svc>, ps aux | grep <process>)\n"
+            "RULES: Never kill -9 as first resort. Never rm -rf. Never reboot. Never iptables -F.\n"
+            "If the repair could be dangerous, output: echo 'BLOCKED:' followed by the reason.\n"
+            "For EVERY repair command, add a comment starting with # ROLLBACK: explaining how to undo."
         ),
         "ai_remediation": (
             "You are an intelligent server repair specialist. "
@@ -98,70 +104,95 @@ class AgentExecutor:
             "Output the diagnostic finding as a comment before each fix command."
         ),
         "log_analyzer": (
-            "You are a log extraction specialist. "
-            "Your ONLY job: generate commands to pull and filter logs from the system. "
-            "Use: journalctl with priority/unit/since filters, dmesg, "
-            "tail -n / grep / awk on /var/log files (messages, secure, syslog, audit). "
-            "Filter for: errors, warnings, failures, time ranges, specific services. "
-            "Never collect metrics, never diagnose, never fix — ONLY pull logs. "
-            "Limit to recent entries (last 500 lines or last 2 hours) to keep output manageable."
+            "You are a LOG EXTRACTION SPECIALIST — you ONLY pull log entries, nothing else.\n"
+            "You are FORBIDDEN from: checking metrics, diagnosing problems, suggesting fixes.\n"
+            "Based on the user's input, pick the right log source:\n"
+            "  If user mentions a SERVICE: journalctl -u <service> -n 100 --no-pager\n"
+            "  If user mentions ERRORS: journalctl -p err -n 100 --no-pager\n"
+            "  If user mentions a TIME: journalctl --since '2 hours ago' -n 100 --no-pager\n"
+            "  If user mentions SECURITY: grep -E 'Failed|Invalid|refused' /var/log/secure | tail -50\n"
+            "  If user mentions APP CRASH: dmesg | tail -50 && journalctl -p err -n 50 --no-pager\n"
+            "  DEFAULT (no hints): journalctl -p warning -n 80 --no-pager\n"
+            "MAX 2 log commands. Always limit to 100 lines max per command (-n 100).\n"
+            "Use --no-pager to avoid interactive mode. NO grep on journalctl output (use journalctl filters)."
         ),
         "compliance_checker": (
-            "You are a security baseline auditor. "
-            "Your ONLY job: generate read-only check commands to verify security configuration. "
-            "Check: SSH hardening (PermitRootLogin, PasswordAuthentication, Port), "
-            "firewall status (firewalld/ufw/iptables), SELinux/AppArmor enforcement mode, "
-            "password policy (minlen, complexity in pwquality.conf), "
-            "empty passwords in /etc/shadow, world-writable files (find / -perm -0002), "
-            "unnecessary listening ports (ss -tlnp), auditd/chronyd status, "
-            "file permissions on critical paths (/etc/passwd, /etc/shadow, /etc/sudoers). "
-            "Each check must output a clear indicator so results can be scored. "
-            "Never modify any configuration — only report the current state."
+            "You are a SECURITY AUDITOR — you produce a formal compliance checklist.\n"
+            "Generate EXACTLY these 8 read-only check commands, one per security item:\n"
+            "1. SSH_ROOT: grep '^PermitRootLogin' /etc/ssh/sshd_config\n"
+            "2. SSH_PASS: grep '^PasswordAuthentication' /etc/ssh/sshd_config\n"
+            "3. FIREWALL: systemctl is-active firewalld 2>/dev/null || ufw status 2>/dev/null || echo 'none'\n"
+            "4. SELINUX: getenforce 2>/dev/null || echo 'not installed'\n"
+            "5. EMPTY_PW: awk -F: '($2==\"\"){print $1}' /etc/shadow | wc -l\n"
+            "6. PASS_POLICY: grep -E '^PASS_MAX_DAYS|^PASS_MIN_LEN' /etc/login.defs 2>/dev/null || echo 'no policy found'\n"
+            "7. WORLD_WRITABLE: find /etc /var -perm -0002 -type f 2>/dev/null | wc -l\n"
+            "8. LISTENING: ss -tlnp 2>/dev/null | awk 'NR>1{print $4}' | awk -F: '{print $NF}' | sort -n | uniq\n"
+            "NO other commands. Each check outputs exactly one value. NO analysis within the commands.\n"
+            "The output of each command will be scored PASS/FAIL by the analysis step."
         ),
     }
 
-    # 各Agent的"输出分析"角色Prompt —— 输出风格匹配各自角色
+    # 各Agent的"输出分析"角色Prompt —— 输出格式完全不同，一眼就能看出是哪个 Agent 的产物
     ANALYSIS_PROMPTS = {
         "monitor": (
-            "You are a hardware metrics analyst. Translate the raw command output into "
-            "a structured resource report. Use tables and numbers. "
-            "Highlight: whether each metric is healthy/warning/critical with thresholds, "
-            "hardware temperature status, resource utilization trends, capacity planning notes. "
-            "Focus ONLY on metrics — do NOT suggest fixes, do NOT diagnose problems, "
-            "do NOT analyze logs. Pure metric analysis only. "
-            "Output in Chinese with a clear table structure."
+            "You are a METRICS REPORT formatter. You MUST output ONLY this table format, no other text:\n"
+            "| 指标 | 当前值 | 阈值 | 状态 |\n"
+            "| CPU | xx% | 80% | 正常/警告/危险 |\n"
+            "| 内存 | xx% | 80% | 正常/警告/危险 |\n"
+            "| 磁盘 | xx% | 85% | 正常/警告/危险 |\n"
+            "| 负载 | x.xx | 核心数 | 正常/偏高 |\n"
+            "| 进程 | xxx个 | - | - |\n"
+            "| 连接 | xxx | - | - |\n"
+            "End with one line: 综合评估: [健康/需关注/异常], 原因: xxx\n"
+            "No analysis, no recommendations, no diagnosis. JUST the table."
         ),
         "diagnostic": (
-            "You are a senior server troubleshooter. Analyze the diagnostic output and "
-            "identify the ROOT CAUSE of the reported problem. "
-            "Rate confidence (low/medium/high) and severity. "
-            "Provide: root cause hypothesis → evidence from the output → recommended fix direction. "
-            "Distinguish between symptoms and causes. If the output is insufficient, "
-            "specify what additional information is needed. "
-            "Output in Chinese, structured and actionable."
+            "You are a ROOT CAUSE ANALYZER. Output MUST follow this structure:\n"
+            "## 故障现象\n[1 句话复述用户报告的故障]\n"
+            "## 根因假设\n[最可能的根因] (置信度: 高/中/低)\n"
+            "## 证据链\n1. [来自命令输出的具体证据 1]\n2. [来自命令输出的具体证据 2]\n"
+            "## 排除项\n- [已排除的可能性及原因]\n"
+            "## 建议方向\n[下一步应该由 remediation Agent 执行的修复操作]\n"
+            "If evidence is insufficient, say 证据不足 and list what additional info is needed."
         ),
         "remediation": (
-            "You are a repair verification specialist. Analyze the command execution output. "
-            "Report clearly: what was done → whether it succeeded → the new state. "
-            "If a repair failed, explain why (from stderr/output) and suggest the next step. "
-            "If successful, confirm the service/process is now healthy. "
-            "Be concise and direct. Output in Chinese."
+            "You are a REPAIR VERIFICATION reporter. Output MUST be:\n"
+            "## 修复报告\n"
+            "| 步骤 | 操作 | 结果 |\n"
+            "| 预检 | [命令] | 成功/失败 |\n"
+            "| 修复 | [修复操作描述] | 成功/失败 |\n"
+            "| 验证 | [验证操作描述] | 成功/失败 |\n"
+            "## 当前状态\n[服务/进程当前状态]\n"
+            "## 回滚方案\n[如果修复失败，如何回滚]\n"
+            "Be concise — no more than 8 lines total."
         ),
         "log_analyzer": (
-            "You are a log forensics analyst. Examine the extracted log data for: "
-            "anomalies, attack indicators (brute force, privilege escalation), "
-            "service failures, recurring error patterns, and timeline reconstruction. "
-            "Rank findings by: critical > warning > info. "
-            "For each finding: timestamp → event → potential impact → suggested action. "
-            "Output in Chinese, structured by severity level."
+            "You are a LOG FORENSICS ANALYST. Output MUST be:\n"
+            "## 日志分析结果\n"
+            "| 时间 | 级别 | 来源 | 摘要 |\n"
+            "| --:-- | 严重/警告/信息 | [进程/服务] | [20字内摘要] |\n"
+            "(list up to 10 most important entries, ranked by severity)\n"
+            "## 异常模式\n[是否有暴力破解、异常登录、循环报错等模式，没有则写 无异常模式]\n"
+            "## 建议\n[1-2 条后续行动建议]\n"
+            "Do NOT diagnose root cause. Do NOT suggest fixes. ONLY log forensics."
         ),
         "compliance_checker": (
-            "You are a security compliance auditor. Produce a formal audit report from the check results. "
-            "Format as a table: check item | status (PASS/FAIL) | risk level | finding | remediation. "
-            "Calculate: compliance score = passed / total × 100%. "
-            "Highlight critical failures (unrestricted root SSH, empty passwords, no firewall). "
-            "For each FAIL item, provide the exact fix command. "
-            "End with a prioritized action plan. Output in Chinese."
+            "You are a COMPLIANCE AUDITOR. Output MUST be a formal audit table:\n"
+            "## 安全合规审计报告\n"
+            "| 检查项 | 结果 | 风险 | 说明 |\n"
+            "| SSH Root登录 | 通过/不通过 | 高/中/低 | [简要说明] |\n"
+            "| SSH 密码认证 | 通过/不通过 | 高/中/低 | [简要说明] |\n"
+            "| 防火墙 | 通过/不通过 | 高/中/低 | [简要说明] |\n"
+            "| SELinux | 通过/不通过 | 中 | [简要说明] |\n"
+            "| 空密码账户 | 通过/不通过 | 高/中/低 | [简要说明] |\n"
+            "| 密码策略 | 通过/不通过 | 中 | [简要说明] |\n"
+            "| 全局可写文件 | 通过/不通过 | 中 | [简要说明] |\n"
+            "| 监听端口 | 通过/不通过 | 中 | [简要说明] |\n"
+            "## 合规评分: X/8 (XX%)\n"
+            "## 优先修复项 (按风险排序)\n"
+            "1. [最紧急的修复项 + 具体命令]\n"
+            "2. [次紧急的]\n"
+            "End with: 审计完成 — 以上结果均来自服务器实际配置检查，非评估猜测。"
         ),
     }
 
@@ -470,7 +501,63 @@ class AgentExecutor:
         cred_error = self._validate_server_credential(server_result)
         if cred_error:
             return {"status": "failed", "output": cred_error, "agent": "monitor"}
-        return await self._ai_execute_on_server("monitor", input_text or "采集全部系统指标", server_result, timeout)
+
+        result: dict = {"agent": "monitor"}
+
+        # 先采集结构化指标（直接从 /proc/stat、free、df 提取数值）
+        # 不依赖 AI，确保 patrol_job 能拿到 cpu/memory/disk 数值
+        try:
+            metrics_cmd = (
+                "cpu=$(grep '^cpu ' /proc/stat | awk "
+                "'{idle=$5; total=$2+$3+$4+$5+$6+$7+$8; printf \"%.1f\", (total-idle)*100/total}');"
+                "echo \"CPU:${cpu:-0}\";"
+                "mem=$(free | awk '/Mem:/{printf \"%.1f\", $3/$2*100}');"
+                "echo \"MEM:${mem:-0}\";"
+                "disk=$(df / | awk 'NR==2{gsub(/%/,\"\"); print $5}');"
+                "echo \"DISK:${disk:-0}\""
+            )
+            async with pool.get_connection(
+                host=server_result.host, port=server_result.port,
+                username=server_result.username,
+                password=server_result.password if not server_result.use_ssh_key else None,
+                private_key=server_result.private_key if server_result.use_ssh_key else None,
+            ) as conn:
+                metrics_output = await asyncio.wait_for(
+                    conn.run(metrics_cmd, check=False, timeout=15),
+                    timeout=20,
+                )
+                for line in (metrics_output.stdout or "").strip().split("\n"):
+                    line = line.strip()
+                    if line.startswith("CPU:"):
+                        try:
+                            result["cpu"] = float(line.split(":", 1)[1])
+                        except ValueError:
+                            pass
+                    elif line.startswith("MEM:"):
+                        try:
+                            result["memory"] = float(line.split(":", 1)[1])
+                        except ValueError:
+                            pass
+                    elif line.startswith("DISK:"):
+                        try:
+                            result["disk"] = float(line.split(":", 1)[1])
+                        except ValueError:
+                            pass
+        except Exception:
+            pass
+
+        # 再运行 AI 管道生成分析报告（失败不影响已采集的指标数值）
+        try:
+            ai_result = await self._ai_execute_on_server(
+                "monitor", input_text or "采集全部系统指标", server_result, timeout
+            )
+            result.update(ai_result)
+        except Exception:
+            if "status" not in result:
+                result["status"] = "partial"
+                result["output"] = "AI 分析失败，但结构化指标采集成功"
+
+        return result
 
     async def _handle_diagnostic(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
         server_result = await self._get_server(server_id, server_msg)

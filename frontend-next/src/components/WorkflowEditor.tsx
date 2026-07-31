@@ -37,6 +37,7 @@ export interface NodeRunResult {
   duration_ms: number;
   retries: number;
   error?: string | null;
+  commands?: string;
 }
 
 interface ServerOption {
@@ -344,6 +345,12 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
                   </span>
                 </div>
                 {r.error && <div className="text-red-400 mt-0.5">{r.error}</div>}
+                {r.commands && (
+                  <details className="mt-1">
+                    <summary className="text-gray-500 cursor-pointer hover:text-gray-400">生成命令</summary>
+                    <pre className="text-gray-400 mt-0.5 bg-gray-950 px-2 py-1 rounded text-[10px] overflow-x-auto whitespace-pre-wrap">{r.commands}</pre>
+                  </details>
+                )}
                 {r.output && (
                   <div className="text-gray-400 mt-0.5 line-clamp-3 whitespace-pre-wrap">{r.output}</div>
                 )}
@@ -356,13 +363,15 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
       {/* Main area */}
       <div className="flex-1 flex min-h-0">
         <AgentPalette />
-        <div className="flex-1 relative" onDrop={onDrop} onDragOver={onDragOver}>
+        <div className="flex-1 relative">
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             onInit={(instance) => { rfInstance.current = instance; }}
