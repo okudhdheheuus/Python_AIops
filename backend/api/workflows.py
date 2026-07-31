@@ -52,7 +52,7 @@ async def list_workflows(
     }
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_workflow(
     body: dict,
     db: AsyncSession = Depends(get_db),
