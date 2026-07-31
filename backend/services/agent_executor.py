@@ -566,7 +566,47 @@ class AgentExecutor:
         cred_error = self._validate_server_credential(server_result)
         if cred_error:
             return {"status": "failed", "output": cred_error, "agent": "diagnostic"}
-        return await self._ai_execute_on_server("diagnostic", input_text, server_result, timeout)
+
+        result: dict = {"agent": "diagnostic"}
+
+        # 先采集快速诊断数据（不依赖 LLM）
+        try:
+            quick_diag_cmd = (
+                "echo '=== UPTIME ===' && uptime && "
+                "echo '=== LOAD ===' && cat /proc/loadavg && "
+                "echo '=== MEMORY ===' && free -h && "
+                "echo '=== DISK ===' && df -h / && "
+                "echo '=== TOP_CPU ===' && ps aux --sort=-%cpu | head -4 && "
+                "echo '=== DMESG_TAIL ===' && dmesg --level=err,warn | tail -10"
+            )
+            async with pool.get_connection(
+                host=server_result.host, port=server_result.port,
+                username=server_result.username,
+                password=server_result.password if not server_result.use_ssh_key else None,
+                private_key=server_result.private_key if server_result.use_ssh_key else None,
+            ) as conn:
+                raw_output = await asyncio.wait_for(
+                    conn.run(quick_diag_cmd, check=False, timeout=15),
+                    timeout=20,
+                )
+                result["quick_diag"] = (raw_output.stdout or "")[:5000]
+        except Exception:
+            pass
+
+        # 再走 AI 管道做深度分析
+        try:
+            ai_result = await self._ai_execute_on_server(
+                "diagnostic", input_text or "诊断当前服务器状态", server_result, timeout
+            )
+            result.update(ai_result)
+        except Exception:
+            if "status" not in result:
+                result["status"] = "partial"
+                result["output"] = (
+                    f"AI 分析失败，以下为快速诊断数据：\n\n```\n{result.get('quick_diag', '采集失败')}\n```"
+                )
+
+        return result
 
     async def _handle_remediation(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
         server_result = await self._get_server(server_id, server_msg)
@@ -623,23 +663,67 @@ class AgentExecutor:
         system_prompt = (
             "You are a change execution expert. Based on the request, generate a detailed change plan "
             "that includes: pre-change checks, step-by-step execution commands, "
-            "verification steps, and a rollback plan. Format in Markdown."
+            "verification steps, and a rollback plan. "
+            "At the end of your response, on a separate line starting with '## EXEC_COMMANDS', "
+            "output ONLY the executable bash commands (one per line, no markdown) that are safe to run automatically."
         )
         plan = await call_llm(input_text, system_prompt, temperature=0.3, user_llm_config=self.user_llm_config)
-        return {
+
+        # 尝试提取可执行命令并在服务器上运行
+        exec_section = plan.split("## EXEC_COMMANDS")[-1] if "EXEC_COMMANDS" in plan else ""
+        commands = exec_section.strip() if exec_section else ""
+
+        result: dict = {
             "output": plan,
             "agent": "change_executor",
-            "requires_confirmation": True,
         }
+
+        if commands and server_id:
+            server_result = await self._get_server(server_id, server_msg)
+            if not isinstance(server_result, dict):
+                cred_error = self._validate_server_credential(server_result)
+                if not cred_error:
+                    blocked_reason = self._check_dangerous(commands)
+                    if blocked_reason:
+                        result["exec_status"] = "blocked"
+                        result["exec_reason"] = blocked_reason
+                    else:
+                        try:
+                            async with pool.get_connection(
+                                host=server_result.host, port=server_result.port,
+                                username=server_result.username,
+                                password=server_result.password if not server_result.use_ssh_key else None,
+                                private_key=server_result.private_key if server_result.use_ssh_key else None,
+                            ) as conn:
+                                exec_result = await asyncio.wait_for(
+                                    conn.run(commands, check=False, timeout=timeout),
+                                    timeout=timeout + 5,
+                                )
+                                result["exec_status"] = "success" if (hasattr(exec_result, 'exit_status') and exec_result.exit_status == 0) else "partial"
+                                result["exec_output"] = (exec_result.stdout or "")[:3000]
+                                result["exec_stderr"] = (exec_result.stderr or "")[:1000]
+                                result["commands"] = commands
+                        except asyncio.TimeoutError:
+                            result["exec_status"] = "timeout"
+                        except Exception as e:
+                            result["exec_status"] = "failed"
+                            result["exec_reason"] = str(e)
+                else:
+                    result["exec_status"] = "skipped"
+                    result["exec_reason"] = "服务器凭据未配置"
+
+        return result
 
     async def _handle_doc_generator(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
         server_info = ""
+        server_result = None
         if server_id:
             async with AsyncSessionLocal() as db:
                 result = await db.execute(select(Server).where(Server.id == server_id))
                 server = result.scalar_one_or_none()
                 if server:
                     server_info = f"Server: {server.name} ({server.host}:{server.port})\n"
+                    server_result = server
 
         system_prompt = (
             "You are a technical documentation expert. Generate clear, well-structured "
@@ -647,7 +731,44 @@ class AgentExecutor:
         )
         full_prompt = f"{server_info}\n\nRequest: {input_text}"
         answer = await call_llm(full_prompt, system_prompt, temperature=0.6, user_llm_config=self.user_llm_config)
-        return {"output": answer, "agent": "doc_generator"}
+
+        result: dict = {
+            "output": answer,
+            "agent": "doc_generator",
+        }
+
+        # 如果有服务器，将文档保存为实际文件
+        if server_result and hasattr(server_result, 'host'):
+            cred_error = self._validate_server_credential(server_result)
+            if not cred_error:
+                ts = int(time_module.time())
+                filename = f"/tmp/ops_report_{ts}.md"
+                # 用 base64 安全写入含特殊字符的 Markdown
+                import base64
+                encoded = base64.b64encode(answer.encode("utf-8")).decode("ascii")
+                write_cmd = f"echo '{encoded}' | base64 -d > {filename} && echo 'OK:{filename}'"
+                try:
+                    async with pool.get_connection(
+                        host=server_result.host, port=server_result.port,
+                        username=server_result.username,
+                        password=server_result.password if not server_result.use_ssh_key else None,
+                        private_key=server_result.private_key if server_result.use_ssh_key else None,
+                    ) as conn:
+                        save_result = await asyncio.wait_for(
+                            conn.run(write_cmd, check=False, timeout=15),
+                            timeout=20,
+                        )
+                        stdout = (save_result.stdout or "").strip()
+                        if stdout.startswith("OK:"):
+                            saved_path = stdout.split("OK:", 1)[1]
+                            result["saved_file"] = saved_path
+                            result["output"] = answer + f"\n\n---\n\n\x1b[32m文档已保存到服务器: {saved_path}\x1b[0m"
+                        else:
+                            result["save_error"] = stdout[:200]
+                except Exception as e:
+                    result["save_error"] = str(e)
+
+        return result
 
     async def _handle_generic(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
         # 意图检测 → 自动路由到专用Agent
