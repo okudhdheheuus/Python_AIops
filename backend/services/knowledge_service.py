@@ -1,15 +1,20 @@
-"""知识库服务 —— 基于关键词的RAG检索增强生成"""
+"""知识库服务 —— 基于 sentence-transformers 的语义 RAG"""
 
 import logging
 
-from sqlalchemy import or_, select
+import numpy as np
+from sqlalchemy import select
 
 from ..database import AsyncSessionLocal
 from ..models import KnowledgeBase
 
 logger = logging.getLogger("knowledge")
 
-# 预设22条运维知识
+# 懒加载的 embedding 模型实例
+_embedding_model = None
+# 内存向量缓存: {entry_id: np.ndarray}
+_embedding_cache: dict[str, np.ndarray] = {}
+
 PRESET_KNOWLEDGE = [
     {"title": "服务器CPU使用率过高排查", "category": "故障排查", "tags": "CPU,性能",
      "content": "当服务器CPU使用率超过90%时，应按以下步骤排查：1. 使用top/htop查看占用CPU最高的进程；2. 检查是否有死循环或异常进程；3. 查看应用日志是否有异常；4. 考虑是否需要扩容或优化代码。"},
@@ -58,32 +63,83 @@ PRESET_KNOWLEDGE = [
 ]
 
 
-async def search_knowledge(query: str, limit: int = 5) -> list[dict]:
-    """基于关键词匹配检索相关知识条目"""
-    async with AsyncSessionLocal() as db:
-        # 从数据库检索
-        keywords = query.split()
-        conditions = []
-        for kw in keywords:
-            conditions.append(KnowledgeBase.title.contains(kw))
-            conditions.append(KnowledgeBase.content.contains(kw))
-            conditions.append(KnowledgeBase.tags.contains(kw))
+def _get_model():
+    """懒加载 sentence-transformers 模型（首次调用时下载约 80MB）"""
+    global _embedding_model
+    if _embedding_model is None:
+        from sentence_transformers import SentenceTransformer
+        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+        logger.info("embedding 模型加载完成: all-MiniLM-L6-v2")
+    return _embedding_model
 
-        if conditions:
-            stmt = (
-                select(KnowledgeBase)
-                .where(
-                    KnowledgeBase.enabled == True,
-                    or_(*conditions),
-                )
-                .limit(limit)
-            )
-            results = (await db.execute(stmt)).scalars().all()
-            return [
-                {"title": r.title, "content": r.content, "category": r.category, "tags": r.tags}
-                for r in results
-            ]
+
+def _embed(text: str) -> np.ndarray:
+    """对文本计算 embedding 向量"""
+    model = _get_model()
+    return model.encode(text, normalize_embeddings=True)
+
+
+async def rebuild_embedding_cache():
+    """从数据库重建全部 embedding 缓存"""
+    global _embedding_cache
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(KnowledgeBase).where(KnowledgeBase.enabled == True)
+        )
+        entries = result.scalars().all()
+        if not entries:
+            _embedding_cache = {}
+            return
+        texts = [f"{e.title} {e.content} {e.tags or ''}" for e in entries]
+        model = _get_model()
+        vectors = model.encode(texts, normalize_embeddings=True)
+        _embedding_cache = {e.id: vec for e, vec in zip(entries, vectors)}
+    logger.info(f"embedding 缓存已重建，共 {len(_embedding_cache)} 条")
+
+
+async def search_knowledge(query: str, limit: int = 5) -> list[dict]:
+    """语义搜索：用 cosine similarity 检索最相关的知识条目"""
+    import asyncio as aio
+    if not _embedding_cache:
+        await rebuild_embedding_cache()
+    if not _embedding_cache:
         return []
+
+    # 在后台线程跑 embedding（sentence-transformers 是同步的）
+    query_vec = await aio.to_thread(_embed, query)
+
+    async with AsyncSessionLocal() as db:
+        entry_ids = list(_embedding_cache.keys())
+        entries = (
+            await db.execute(
+                select(KnowledgeBase).where(KnowledgeBase.id.in_(entry_ids))
+            )
+        ).scalars().all()
+        entry_map = {e.id: e for e in entries}
+
+    # 计算 cosine similarity（向量已 normalize，点积即 cosine）
+    scored = []
+    for eid, vec in _embedding_cache.items():
+        entry = entry_map.get(eid)
+        if entry is None:
+            continue
+        score = float(np.dot(query_vec, vec))
+        scored.append((score, entry))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = scored[:limit]
+
+    return [
+        {
+            "id": e.id,
+            "title": e.title,
+            "content": e.content,
+            "category": e.category,
+            "tags": e.tags,
+            "score": round(s, 4),
+        }
+        for s, e in top if s > 0.2  # 过滤低相关度
+    ]
 
 
 async def seed_preset_knowledge():
@@ -107,11 +163,66 @@ async def seed_preset_knowledge():
             )
             db.add(entry)
         await db.commit()
+    await rebuild_embedding_cache()
     logger.info(f"预设知识库初始化完成，共 {len(PRESET_KNOWLEDGE)} 条")
 
 
+async def create_entry(title: str, content: str, category: str = "", tags: str = "", source: str = "manual") -> dict:
+    """新增知识条目"""
+    async with AsyncSessionLocal() as db:
+        entry = KnowledgeBase(
+            title=title, content=content, category=category,
+            tags=tags, source=source, enabled=True,
+        )
+        db.add(entry)
+        await db.commit()
+        await db.refresh(entry)
+    await rebuild_embedding_cache()
+    return _entry_to_dict(entry)
+
+
+async def update_entry(entry_id: str, **fields) -> dict | None:
+    """更新知识条目"""
+    async with AsyncSessionLocal() as db:
+        entry = await db.get(KnowledgeBase, entry_id)
+        if not entry:
+            return None
+        for k, v in fields.items():
+            if hasattr(entry, k) and v is not None:
+                setattr(entry, k, v)
+        await db.commit()
+        await db.refresh(entry)
+    await rebuild_embedding_cache()
+    return _entry_to_dict(entry)
+
+
+async def delete_entry(entry_id: str) -> bool:
+    """删除知识条目"""
+    async with AsyncSessionLocal() as db:
+        entry = await db.get(KnowledgeBase, entry_id)
+        if not entry:
+            return False
+        await db.delete(entry)
+        await db.commit()
+    await rebuild_embedding_cache()
+    return True
+
+
+def _entry_to_dict(e: KnowledgeBase) -> dict:
+    return {
+        "id": e.id,
+        "title": e.title,
+        "content": e.content,
+        "category": e.category,
+        "tags": e.tags,
+        "source": e.source,
+        "enabled": e.enabled,
+        "created_at": str(e.created_at) if e.created_at else None,
+    }
+
+
 async def build_rag_context(query: str, max_tokens: int = 2000) -> str:
-    """构建RAG上下文：检索相关知识，拼接为prompt可用的文本"""
+    """构建 RAG 上下文：语义检索相关知识，拼接为 prompt 可用的文本"""
     items = await search_knowledge(query)
     if not items:
         return ""
@@ -119,7 +230,7 @@ async def build_rag_context(query: str, max_tokens: int = 2000) -> str:
     lines = ["以下是相关的运维知识，请基于这些知识回答问题：\n"]
     token_estimate = 0
     for item in items:
-        snippet = f"---\n【{item['title']}】({item.get('category', '')}): {item['content']}\n"
+        snippet = f"---\n【{item['title']}】(相关度: {item['score']:.0%} | {item.get('category', '')}): {item['content']}\n"
         token_estimate += len(snippet) // 3
         if token_estimate > max_tokens:
             break

@@ -206,7 +206,9 @@ class AgentExecutor:
             handler = getattr(self, f"_handle_{agent_type}", None)
             if handler:
                 return await handler(input_text, server_id, server_msg, timeout)
-            answer = await call_llm(input_text, temperature=0.7, user_llm_config=self.user_llm_config)
+            rag_context = await build_rag_context(input_text)
+            rag_prefix = f"{rag_context}\n\n" if rag_context else ""
+            answer = await call_llm(f"{rag_prefix}{input_text}", temperature=0.7, user_llm_config=self.user_llm_config)
             return {"output": answer, "agent": agent_type}
         except Exception as e:
             logger.exception(f"Agent执行失败 [{agent_type}]")
@@ -375,8 +377,10 @@ class AgentExecutor:
         analysis_prompt = self.ANALYSIS_PROMPTS.get(agent_type, self.ANALYSIS_PROMPTS["monitor"])
 
         # Step 1: LLM 生成命令
+        rag_context = await build_rag_context(user_input)
+        rag_prefix = f"{rag_context}\n\n" if rag_context else ""
         gen_full_prompt = (
-            f"{cmd_gen_prompt}\n\n"
+            f"{rag_prefix}{cmd_gen_prompt}\n\n"
             f"Server: {server.name} ({server.host})\n"
             f"User request: {user_input}\n\n"
             f"Output ONLY a ```bash code block. Be concise — no verbose comments, "
@@ -442,8 +446,10 @@ class AgentExecutor:
             output_for_analysis += f"\n\n[stderr]\n{stderr_output[:2000]}"
 
         # Step 4: LLM 分析输出
+        rag_context2 = await build_rag_context(user_input)
+        rag_prefix2 = f"{rag_context2}\n\n" if rag_context2 else ""
         analysis_full_prompt = (
-            f"User request: {user_input}\n\n"
+            f"{rag_prefix2}User request: {user_input}\n\n"
             f"Commands executed:\n```bash\n{commands}\n```\n\n"
             f"Exit code: {exit_code}\n\n"
             f"Command output:\n{output_for_analysis}\n\n"
@@ -666,14 +672,18 @@ class AgentExecutor:
             pass
 
         context = "\n".join(context_lines) if context_lines else "无活跃告警"
+        rag_context = await build_rag_context(input_text)
+        rag_prefix = f"{rag_context}\n\n" if rag_context else ""
         system_prompt = (
             "You are an alert analysis expert. Evaluate the severity, urgency, and potential impact "
             "of the given alert. Suggest the appropriate response priority (P0-P4) and recommended actions."
         )
-        answer = await call_llm(f"{context}\n\nAlert to analyze: {input_text}", system_prompt, temperature=0.4, user_llm_config=self.user_llm_config)
+        answer = await call_llm(f"{rag_prefix}{context}\n\nAlert to analyze: {input_text}", system_prompt, temperature=0.4, user_llm_config=self.user_llm_config)
         return {"output": answer, "agent": "alert_analyzer"}
 
     async def _handle_change_executor(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
+        rag_context = await build_rag_context(input_text)
+        rag_prefix = f"{rag_context}\n\n" if rag_context else ""
         system_prompt = (
             "You are a change execution expert. Based on the request, generate a detailed change plan "
             "that includes: pre-change checks, step-by-step execution commands, "
@@ -681,7 +691,7 @@ class AgentExecutor:
             "At the end of your response, on a separate line starting with '## EXEC_COMMANDS', "
             "output ONLY the executable bash commands (one per line, no markdown) that are safe to run automatically."
         )
-        plan = await call_llm(input_text, system_prompt, temperature=0.3, user_llm_config=self.user_llm_config)
+        plan = await call_llm(f"{rag_prefix}{input_text}", system_prompt, temperature=0.3, user_llm_config=self.user_llm_config)
 
         # 尝试提取可执行命令并在服务器上运行
         exec_section = plan.split("## EXEC_COMMANDS")[-1] if "EXEC_COMMANDS" in plan else ""
@@ -751,7 +761,9 @@ class AgentExecutor:
             "CRITICAL: Use the actual data provided. If data is present, generate the report "
             "from it. NEVER output a template with placeholders like 'xx%' or '参考值'."
         )
-        full_prompt = f"## 服务器信息\n{server_info}\n\n## 上游数据\n{input_text}\n\n请基于以上数据生成完整的运维巡检报告。"
+        rag_context = await build_rag_context(input_text)
+        rag_prefix = f"{rag_context}\n\n" if rag_context else ""
+        full_prompt = f"{rag_prefix}## 服务器信息\n{server_info}\n\n## 上游数据\n{input_text}\n\n请基于以上数据生成完整的运维巡检报告。"
         answer = await call_llm(full_prompt, system_prompt, temperature=0.5, user_llm_config=self.user_llm_config)
 
         result: dict = {
