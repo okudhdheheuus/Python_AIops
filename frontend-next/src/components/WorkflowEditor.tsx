@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, type DragEvent } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -128,6 +128,7 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const rfInstance = useRef<ReactFlowInstance | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
@@ -136,35 +137,51 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
     [setEdges]
   );
 
-  function onDragOver(event: DragEvent) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  }
+  // 拖放: 用原生 DOM 事件绕过 ReactFlow 内部 SyntheticEvent 拦截
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
 
-  function onDrop(event: DragEvent) {
-    event.preventDefault();
-    const agentType = event.dataTransfer.getData("application/reactflow-agent-type");
-    if (!agentType || !rfInstance.current) return;
-    const position = rfInstance.current.screenToFlowPosition({
-      x: event.clientX,
-      y: event.clientY,
-    });
-    const newNode: Node = {
-      id: crypto.randomUUID(),
-      type: "agentNode",
-      position,
-      data: {
-        agent_type: agentType,
-        prompt: "",
-        server_id: null,
-        timeout: 60,
-        max_retries: 2,
-        condition: "",
-        config: {},
-      },
+    function handleDragOver(e: Event) {
+      e.preventDefault();
+      (e as globalThis.DragEvent).dataTransfer!.dropEffect = "move";
+    }
+
+    function handleDrop(e: Event) {
+      e.preventDefault();
+      const de = e as globalThis.DragEvent;
+      const agentType = de.dataTransfer?.getData("application/reactflow-agent-type");
+      if (!agentType || !rfInstance.current) return;
+      const position = rfInstance.current.screenToFlowPosition({
+        x: de.clientX,
+        y: de.clientY,
+      });
+      setNodes((nds) => [
+        ...nds,
+        {
+          id: crypto.randomUUID(),
+          type: "agentNode",
+          position,
+          data: {
+            agent_type: agentType,
+            prompt: "",
+            server_id: null,
+            timeout: 60,
+            max_retries: 2,
+            condition: "",
+            config: {},
+          },
+        },
+      ]);
+    }
+
+    el.addEventListener("dragover", handleDragOver, true);
+    el.addEventListener("drop", handleDrop, true);
+    return () => {
+      el.removeEventListener("dragover", handleDragOver, true);
+      el.removeEventListener("drop", handleDrop, true);
     };
-    setNodes((nds) => [...nds, newNode]);
-  }
+  }, [setNodes]);
 
   function handleUpdateNode(d: AgentNodeData) {
     if (!selectedNodeId) return;
@@ -363,15 +380,13 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
       {/* Main area */}
       <div className="flex-1 flex min-h-0">
         <AgentPalette />
-        <div className="flex-1 relative">
+        <div className="flex-1 relative" ref={wrapperRef}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             onInit={(instance) => { rfInstance.current = instance; }}

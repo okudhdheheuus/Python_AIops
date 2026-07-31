@@ -63,13 +63,28 @@ export default function DashboardPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">运维仪表盘</h1>
 
+      {dashboard?.servers === 0 && (
+        <div className="bg-yellow-600/10 border border-yellow-600/30 rounded-xl p-4 mb-6 text-sm text-yellow-300">
+          <strong>尚无服务器</strong> — 请先前往
+          <a href="/servers" className="text-blue-400 hover:underline mx-1">服务器管理</a>
+          添加至少一台服务器并配置 SSH 凭据，巡检调度器才会采集指标数据。巡检每 5 分钟自动运行一次。
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <MetricCard icon={<Server />} label="管理服务器" value={dashboard?.servers ?? 0} />
         <MetricCard icon={<Bell />} label="告警总数" value={dashboard?.total_alerts ?? 0} />
         <MetricCard icon={<Activity />} label="活跃告警" value={dashboard?.firing_alerts ?? 0} color="text-red-400" />
       </div>
 
-      {patrol && (
+      {patrol && patrol.total === 0 ? (
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6 text-sm text-gray-400">
+          <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+            <Cpu size={20} /> 近7日巡检概览
+          </h2>
+          暂无巡检记录 — 添加服务器后，巡检调度器每 5 分钟自动采集一次数据。
+        </div>
+      ) : patrol ? (
         <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Cpu size={20} /> 近7日巡检概览
@@ -84,7 +99,7 @@ export default function DashboardPage() {
             平均资源: CPU {patrol.avg_cpu}% / 内存 {patrol.avg_memory}% / 磁盘 {patrol.avg_disk}%
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
