@@ -14,7 +14,7 @@ import {
   type Connection,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { Play, Loader2, Save, X, Workflow, Download } from "lucide-react";
+import { Play, Loader2, Save, X, Workflow, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { nodeTypes } from "@/components/AgentNode";
 import AgentPalette from "@/components/AgentPalette";
 import NodeConfigPanel from "@/components/NodeConfigPanel";
@@ -131,6 +131,8 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
   const [runResults, setRunResults] = useState<Record<string, NodeRunResult> | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(true);
+  const [expandedOutputs, setExpandedOutputs] = useState<Set<string>>(new Set());
 
   function downloadOutput(filename: string, content: string) {
     const ext = content.trimStart().startsWith("##") || content.includes("###") ? ".md" : ".txt";
@@ -394,7 +396,26 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
                   </details>
                 )}
                 {r.output && (
-                  <div className="text-gray-400 mt-0.5 line-clamp-3 whitespace-pre-wrap">{r.output}</div>
+                  <div>
+                    <div
+                      className={`text-gray-400 mt-0.5 whitespace-pre-wrap cursor-pointer hover:text-gray-300 transition-colors ${expandedOutputs.has(n.id) ? "" : "line-clamp-3"}`}
+                      onClick={() => setExpandedOutputs((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(n.id)) next.delete(n.id);
+                        else next.add(n.id);
+                        return next;
+                      })}
+                      title={expandedOutputs.has(n.id) ? "点击收起" : "点击展开"}
+                    >
+                      {r.output}
+                    </div>
+                    {r.output.length > 200 && (
+                      <span className="text-[10px] text-gray-600">
+                        {expandedOutputs.has(n.id) ? <ChevronUp size={10} className="inline" /> : <ChevronDown size={10} className="inline" />}
+                        {" "}{expandedOutputs.has(n.id) ? "收起" : "展开全部"}
+                      </span>
+                    )}
+                  </div>
                 )}
                 {r.output && r.output.length > 20 && (
                   <button
@@ -418,7 +439,20 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
 
       {/* Main area */}
       <div className="flex-1 flex min-h-0">
-        <AgentPalette />
+        {/* Collapsible palette sidebar */}
+        <div className={`shrink-0 transition-all duration-200 overflow-hidden ${paletteOpen ? "w-[210px]" : "w-0"}`}>
+          <div className="w-[210px] h-full">
+            <AgentPalette />
+          </div>
+        </div>
+        {/* Toggle button */}
+        <button
+          onClick={() => setPaletteOpen((v) => !v)}
+          className="shrink-0 w-5 bg-gray-800 hover:bg-gray-700 border-y border-gray-700 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
+          title={paletteOpen ? "收起面板" : "展开面板"}
+        >
+          {paletteOpen ? <ChevronLeft size={12} /> : <ChevronRight size={12} />}
+        </button>
         <div className="flex-1 relative" ref={wrapperRef}>
           <ReactFlow
             nodes={nodes}
