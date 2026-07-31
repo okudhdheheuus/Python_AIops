@@ -2,6 +2,8 @@
 FROM python:3.11-slim AS builder
 WORKDIR /app
 COPY backend/requirements.txt .
+# 先装 CPU-only PyTorch，避免拉取带 CUDA 依赖的完整版（无 GPU 容器无法加载 CUDA 库）
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 运行阶段

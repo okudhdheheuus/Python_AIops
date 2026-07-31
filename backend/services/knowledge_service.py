@@ -67,10 +67,15 @@ def _get_model():
     """懒加载 sentence-transformers 模型（首次调用时下载约 80MB）"""
     global _embedding_model
     if _embedding_model is None:
-        from sentence_transformers import SentenceTransformer
-        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-        logger.info("embedding 模型加载完成: all-MiniLM-L6-v2")
-    return _embedding_model
+        try:
+            from sentence_transformers import SentenceTransformer
+            _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+            logger.info("embedding 模型加载完成: all-MiniLM-L6-v2")
+        except Exception as e:
+            # 模型加载失败（如 torch CUDA 库不可用）时置为 False，语义检索降级为空
+            logger.error(f"embedding 模型加载失败，语义检索将降级为不可用: {e}")
+            _embedding_model = False
+    return _embedding_model or None
 
 
 def _embed(text: str) -> np.ndarray:
@@ -82,6 +87,11 @@ def _embed(text: str) -> np.ndarray:
 async def rebuild_embedding_cache():
     """从数据库重建全部 embedding 缓存"""
     global _embedding_cache
+    model = _get_model()
+    if not model:
+        logger.warning("embedding 模型不可用，跳过缓存重建")
+        _embedding_cache = {}
+        return
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(KnowledgeBase).where(KnowledgeBase.enabled == True)
@@ -91,7 +101,6 @@ async def rebuild_embedding_cache():
             _embedding_cache = {}
             return
         texts = [f"{e.title} {e.content} {e.tags or ''}" for e in entries]
-        model = _get_model()
         vectors = model.encode(texts, normalize_embeddings=True)
         _embedding_cache = {e.id: vec for e, vec in zip(entries, vectors)}
     logger.info(f"embedding 缓存已重建，共 {len(_embedding_cache)} 条")
@@ -223,16 +232,21 @@ def _entry_to_dict(e: KnowledgeBase) -> dict:
 
 async def build_rag_context(query: str, max_tokens: int = 2000) -> str:
     """构建 RAG 上下文：语义检索相关知识，拼接为 prompt 可用的文本"""
-    items = await search_knowledge(query)
-    if not items:
-        return ""
+    try:
+        items = await search_knowledge(query)
+        if not items:
+            return ""
 
-    lines = ["以下是相关的运维知识，请基于这些知识回答问题：\n"]
-    token_estimate = 0
-    for item in items:
-        snippet = f"---\n【{item['title']}】(相关度: {item['score']:.0%} | {item.get('category', '')}): {item['content']}\n"
-        token_estimate += len(snippet) // 3
-        if token_estimate > max_tokens:
-            break
-        lines.append(snippet)
-    return "\n".join(lines)
+        lines = ["以下是相关的运维知识，请基于这些知识回答问题：\n"]
+        token_estimate = 0
+        for item in items:
+            snippet = f"---\n【{item['title']}】(相关度: {item['score']:.0%} | {item.get('category', '')}): {item['content']}\n"
+            token_estimate += len(snippet) // 3
+            if token_estimate > max_tokens:
+                break
+            lines.append(snippet)
+        return "\n".join(lines)
+    except Exception as e:
+        # RAG 失败不能阻断 AI 修复/分析主流程，降级为无知识上下文
+        logger.warning(f"RAG 上下文构建失败，跳过知识增强: {e}")
+        return ""
