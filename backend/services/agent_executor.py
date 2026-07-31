@@ -726,11 +726,19 @@ class AgentExecutor:
                     server_result = server
 
         system_prompt = (
-            "You are a technical documentation expert. Generate clear, well-structured "
-            "IT operations documentation based on the provided information. Format in Markdown."
+            "You are an IT operations documentation expert. Based on the provided data "
+            "(server metrics, log analysis, monitoring results), generate a PROFESSIONAL "
+            "operations report in Markdown. Follow this structure:\n"
+            "## 1. 概述\nBrief summary of the system state in 2-3 sentences.\n"
+            "## 2. 关键指标\n| 指标 | 当前值 | 阈值 | 状态 |\n"
+            "Fill in actual numbers from the provided data — do NOT use placeholders.\n"
+            "## 3. 异常与风险\nList any anomalies, warnings, or risks found.\n"
+            "## 4. 建议措施\nSpecific, actionable recommendations (commands if applicable).\n\n"
+            "CRITICAL: Use the actual data provided. If data is present, generate the report "
+            "from it. NEVER output a template with placeholders like 'xx%' or '参考值'."
         )
-        full_prompt = f"{server_info}\n\nRequest: {input_text}"
-        answer = await call_llm(full_prompt, system_prompt, temperature=0.6, user_llm_config=self.user_llm_config)
+        full_prompt = f"## 服务器信息\n{server_info}\n\n## 上游数据\n{input_text}\n\n请基于以上数据生成完整的运维巡检报告。"
+        answer = await call_llm(full_prompt, system_prompt, temperature=0.5, user_llm_config=self.user_llm_config)
 
         result: dict = {
             "output": answer,

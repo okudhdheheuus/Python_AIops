@@ -14,7 +14,7 @@ import {
   type Connection,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { Play, Loader2, Save, X, Workflow } from "lucide-react";
+import { Play, Loader2, Save, X, Workflow, Download } from "lucide-react";
 import { nodeTypes } from "@/components/AgentNode";
 import AgentPalette from "@/components/AgentPalette";
 import NodeConfigPanel from "@/components/NodeConfigPanel";
@@ -131,6 +131,17 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
   const [runResults, setRunResults] = useState<Record<string, NodeRunResult> | null>(null);
+
+  function downloadOutput(filename: string, content: string) {
+    const ext = content.trimStart().startsWith("##") || content.includes("###") ? ".md" : ".txt";
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename.replace(/[^a-zA-Z0-9一-鿿_-]/g, "_") + ext;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   // 已保存的工作流 id；未保存时为 null，运行时会先自动保存
   const [wfId, setWfId] = useState<string | null>(workflow?.id || null);
 
@@ -384,6 +395,20 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
                 )}
                 {r.output && (
                   <div className="text-gray-400 mt-0.5 line-clamp-3 whitespace-pre-wrap">{r.output}</div>
+                )}
+                {r.output && r.output.length > 20 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadOutput(
+                        `${def?.name || d.agent_type}_${new Date().toISOString().slice(0, 10)}`,
+                        r.output
+                      );
+                    }}
+                    className="mt-1 flex items-center gap-1 text-[10px] text-gray-500 hover:text-blue-400 transition-colors"
+                  >
+                    <Download size={10} /> 导出文件
+                  </button>
                 )}
               </div>
             );

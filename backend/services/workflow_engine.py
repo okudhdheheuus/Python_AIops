@@ -92,14 +92,23 @@ class WorkflowEngine:
         node_id = node.get("id", "unknown")
         config = node.get("config", {})
         agent_type = node.get("agent_type") or config.get("agent_type", "generic")
-        prompt = node.get("prompt") or config.get("prompt", input_text)
+        node_prompt = node.get("prompt") or config.get("prompt", "")
         server_id = node.get("server_id") or config.get("server_id")
         node_timeout = node.get("timeout") or config.get("timeout", timeout)
         node_max_retries = node.get("max_retries") or config.get("max_retries", max_retries)
 
+        # 合并节点 prompt 与上游输出
+        upstream = input_text.strip() if input_text and input_text.strip() != "Start workflow" else ""
+        if node_prompt and upstream:
+            combined_input = f"{node_prompt}\n\n[上游节点输出]\n{upstream}"
+        elif node_prompt:
+            combined_input = node_prompt
+        else:
+            combined_input = upstream or input_text
+
         # 条件分支检查
         condition = node.get("condition")
-        if condition and not self._evaluate_condition(condition, input_text):
+        if condition and not self._evaluate_condition(condition, combined_input):
             return NodeResult(node_id, "skipped", "条件不满足，跳过执行", 0)
 
         last_error = None
@@ -109,7 +118,7 @@ class WorkflowEngine:
                 result = await asyncio.wait_for(
                     self.agent_executor.execute(
                         agent_type=agent_type,
-                        input_text=prompt,
+                        input_text=combined_input,
                         server_id=server_id,
                         timeout=node_timeout,
                     ),
