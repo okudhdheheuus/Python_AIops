@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Workflow, Plus, Play, Trash2, Edit3, History, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Workflow, Plus, Play, Trash2, Edit3, History, Loader2, ChevronLeft, ChevronRight, LayoutTemplate } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import WorkflowEditor from "@/components/WorkflowEditor";
+import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "@/lib/workflowTemplates";
 
 interface WorkflowItem {
   id: string;
@@ -15,6 +16,9 @@ interface WorkflowItem {
   created_at: string;
   updated_at?: string;
 }
+
+// 新建/模板草稿：id 可选，保存前为 undefined
+type WorkflowDraft = Omit<WorkflowItem, "id"> & { id?: string };
 
 interface Execution {
   id: string;
@@ -38,7 +42,7 @@ interface ServerOption {
 export default function WorkflowsPage() {
   const { token, authFetch } = useAuth();
   const [viewMode, setViewMode] = useState<"list" | "editor">("list");
-  const [editingWorkflow, setEditingWorkflow] = useState<WorkflowItem | null>(null);
+  const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDraft | null>(null);
 
   const [workflows, setWorkflows] = useState<WorkflowItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,6 +58,8 @@ export default function WorkflowsPage() {
   const [showExecutions, setShowExecutions] = useState<string | null>(null);
   const [executions, setExecutions] = useState<Execution[]>([]);
   const [execLoading, setExecLoading] = useState(false);
+
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const [serverOptions, setServerOptions] = useState<ServerOption[]>([]);
 
@@ -143,6 +149,21 @@ export default function WorkflowsPage() {
 
   function openCreate() {
     setEditingWorkflow(null);
+    setShowTemplates(false);
+    setViewMode("editor");
+  }
+
+  function openCreateWithTemplate(tpl: WorkflowTemplate) {
+    setEditingWorkflow({
+      id: undefined,
+      name: tpl.name,
+      description: tpl.description,
+      nodes: tpl.nodes,
+      edges: tpl.edges,
+      is_template: false,
+      created_at: new Date().toISOString(),
+    });
+    setShowTemplates(false);
     setViewMode("editor");
   }
 
@@ -173,6 +194,7 @@ export default function WorkflowsPage() {
             fetchWorkflows();
           }}
           onCancel={() => setViewMode("list")}
+          onWorkflowCreated={() => fetchWorkflows()}
         />
       </div>
     );
@@ -182,12 +204,38 @@ export default function WorkflowsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">工作流</h1>
-        <button
-          onClick={openCreate}
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white flex items-center gap-2 text-sm"
-        >
-          <Plus size={16} /> 创建工作流
-        </button>
+        <div className="flex items-center gap-2 relative">
+          <button
+            onClick={() => setShowTemplates((v) => !v)}
+            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-4 py-2 rounded-lg text-gray-200 flex items-center gap-2 text-sm"
+          >
+            <LayoutTemplate size={16} /> 从模板创建
+          </button>
+          <button
+            onClick={openCreate}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white flex items-center gap-2 text-sm"
+          >
+            <Plus size={16} /> 空白创建
+          </button>
+
+          {showTemplates && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowTemplates(false)} />
+              <div className="absolute right-0 top-full mt-2 z-40 w-80 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden">
+                {WORKFLOW_TEMPLATES.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    onClick={() => openCreateWithTemplate(tpl)}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-700/50 transition border-b border-gray-700 last:border-0"
+                  >
+                    <div className="text-sm text-white font-medium">{tpl.name}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{tpl.description}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {loading ? (

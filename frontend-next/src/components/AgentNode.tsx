@@ -12,18 +12,33 @@ const iconMap: Record<string, LucideIcon> = {
   Bot, Cpu, Stethoscope, Wrench, Bell, ScrollText, GitBranch, FileText, ShieldCheck,
 };
 
+const STATUS_GLOW: Record<string, string> = {
+  success: "#22c55e",
+  failed: "#ef4444",
+  blocked: "#ef4444",
+  timeout: "#eab308",
+  skipped: "#eab308",
+  running: "#3b82f6",
+  partial: "#eab308",
+};
+
 function AgentNode({ data, selected }: NodeProps) {
   const d = data as unknown as AgentNodeData;
   const def = getAgentDef(d.agent_type);
   const Icon = def ? iconMap[def.icon] || Bot : Bot;
   const accentColor = def?.color || "#6b7280";
+  const statusColor = d.run_status ? STATUS_GLOW[d.run_status] : null;
 
   return (
     <div
       className="bg-gray-800 border border-gray-700 rounded-xl w-[220px] shadow-lg transition-shadow"
       style={{
-        borderLeft: `4px solid ${accentColor}`,
-        boxShadow: selected ? `0 0 0 2px ${accentColor}80, 0 4px 12px ${accentColor}30` : undefined,
+        borderLeft: `4px solid ${statusColor || accentColor}`,
+        boxShadow: statusColor
+          ? `0 0 0 2px ${statusColor}80, 0 4px 12px ${statusColor}30`
+          : selected
+          ? `0 0 0 2px ${accentColor}80, 0 4px 12px ${accentColor}30`
+          : undefined,
       }}
     >
       <Handle

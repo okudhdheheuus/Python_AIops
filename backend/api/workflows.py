@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_db
-from ..models import User, Workflow, WorkflowExecution
+from ..database import AsyncSessionLocal, get_db
+from ..models import User, UserLLMConfig, Workflow, WorkflowExecution
 from ..services.agent_executor import AgentExecutor
 from ..services.workflow_engine import WorkflowEngine
 from ..utils.security import get_current_active_user
@@ -138,11 +138,20 @@ async def run_workflow(
     workflow_id: str,
     db: AsyncSession = Depends(get_db),
     body: dict | None = None,
+    current_user: User = Depends(get_current_active_user),
 ):
     """执行工作流"""
     wf = await db.get(Workflow, workflow_id)
     if not wf:
         raise HTTPException(status_code=404, detail="工作流不存在")
+
+    # 加载当前用户的 LLM 配置，节点执行走用户的 Key（未配置则回退全局）
+    user_llm_config = None
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(UserLLMConfig).where(UserLLMConfig.user_id == current_user.id)
+        )
+        user_llm_config = result.scalar_one_or_none()
 
     workflow_def = {
         "nodes": json.loads(wf.nodes) if isinstance(wf.nodes, str) else wf.nodes,
@@ -153,7 +162,7 @@ async def run_workflow(
     node_timeout = (body or {}).get("node_timeout", 60)
     max_retries = (body or {}).get("max_retries", 2)
 
-    executor = AgentExecutor()
+    executor = AgentExecutor(user_llm_config=user_llm_config)
     engine = WorkflowEngine(executor)
 
     start = time.perf_counter()

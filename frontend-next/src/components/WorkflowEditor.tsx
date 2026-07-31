@@ -21,7 +21,7 @@ import NodeConfigPanel from "@/components/NodeConfigPanel";
 import { getAgentDef, type AgentNodeData, type ApiWorkflowNode, type ApiWorkflowEdge } from "@/lib/agentTypes";
 
 interface WorkflowItem {
-  id: string;
+  id?: string;
   name: string;
   description?: string;
   nodes: unknown[];
@@ -29,6 +29,14 @@ interface WorkflowItem {
   is_template: boolean;
   created_at: string;
   updated_at?: string;
+}
+
+export interface NodeRunResult {
+  status: string;
+  output: string;
+  duration_ms: number;
+  retries: number;
+  error?: string | null;
 }
 
 interface ServerOption {
@@ -43,6 +51,7 @@ interface Props {
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
   onSaved: () => void;
   onCancel: () => void;
+  onWorkflowCreated?: (id: string) => void;
 }
 
 function apiToFlowNodes(nodes: unknown[]): Node[] {
@@ -81,6 +90,7 @@ function serializeWorkflow(nodes: Node[], edges: Edge[]) {
     return {
       id: n.id,
       agent_type: d.agent_type,
+      position: n.position,
       prompt: d.prompt || undefined,
       server_id: d.server_id || undefined,
       timeout: d.timeout || undefined,
@@ -96,7 +106,7 @@ function serializeWorkflow(nodes: Node[], edges: Edge[]) {
   return { nodes: apiNodes, edges: apiEdges };
 }
 
-export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, onCancel }: Props) {
+export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, onCancel, onWorkflowCreated }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState(
     workflow ? apiToFlowNodes(workflow.nodes) : []
   );
@@ -111,6 +121,9 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+  const [runResults, setRunResults] = useState<Record<string, NodeRunResult> | null>(null);
+  // 已保存的工作流 id；未保存时为 null，运行时会先自动保存
+  const [wfId, setWfId] = useState<string | null>(workflow?.id || null);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const rfInstance = useRef<ReactFlowInstance | null>(null);
@@ -178,8 +191,8 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
       is_template: isTemplate,
     };
     try {
-      const isEdit = workflow?.id;
-      const url = isEdit ? `/api/workflows/${workflow.id}` : "/api/workflows";
+      const isEdit = wfId;
+      const url = isEdit ? `/api/workflows/${wfId}` : "/api/workflows";
       const method = isEdit ? "PUT" : "POST";
       const resp = await authFetch(url, { method, body: JSON.stringify(body) });
       if (!resp.ok) {
@@ -197,16 +210,53 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
   async function handleRun() {
     setRunning(true);
     setRunResult(null);
+    setRunResults(null);
     try {
-      if (!workflow?.id) {
-        setRunResult("请先保存工作流后再运行");
+      if (nodes.length === 0) {
+        setRunResult("请先添加节点再运行");
         return;
       }
-      const resp = await authFetch(`/api/workflows/${workflow.id}/run`, { method: "POST" });
+      // 未保存的工作流先自动保存，保证有执行历史
+      let runWorkflowId = wfId;
+      if (!runWorkflowId) {
+        const { nodes: apiNodes, edges: apiEdges } = serializeWorkflow(nodes, edges);
+        const resp = await authFetch("/api/workflows", {
+          method: "POST",
+          body: JSON.stringify({
+            name: name.trim() || "未命名工作流",
+            description: description || undefined,
+            nodes: apiNodes,
+            edges: apiEdges,
+            is_template: isTemplate,
+          }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error((err as { detail?: string }).detail || `保存失败 HTTP ${resp.status}`);
+        }
+        const created = await resp.json();
+        runWorkflowId = created.id as string;
+        setWfId(runWorkflowId);
+        onWorkflowCreated?.(runWorkflowId);
+      }
+      const resp = await authFetch(`/api/workflows/${runWorkflowId}/run`, { method: "POST" });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error((err as { detail?: string }).detail || `运行失败 HTTP ${resp.status}`);
+      }
       const data = await resp.json();
       setRunResult(
         `状态: ${data.status} | 节点: ${data.completed_count}/${data.node_count} | 耗时: ${data.duration_ms}ms`
       );
+      if (data.results) {
+        setRunResults(data.results as Record<string, NodeRunResult>);
+        setNodes((nds) =>
+          nds.map((n) => {
+            const status = (data.results as Record<string, { status?: string }>)[n.id]?.status;
+            return status ? { ...n, data: { ...(n.data as AgentNodeData), run_status: status } } : n;
+          })
+        );
+      }
     } catch (e: unknown) {
       setRunResult(`运行失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -246,9 +296,14 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
             {runResult}
           </span>
         )}
-        <button onClick={handleRun} disabled={running || !workflow?.id} className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 px-3 py-1.5 rounded-lg text-white text-xs transition">
+        <button
+          onClick={handleRun}
+          disabled={running || nodes.length === 0}
+          title={nodes.length === 0 ? "请先在画布中添加节点" : "运行工作流"}
+          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 px-3 py-1.5 rounded-lg text-white text-xs transition"
+        >
           {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-          运行
+          {wfId ? "运行" : "保存并运行"}
         </button>
         <button onClick={handleSave} disabled={saving || !name.trim()} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-3 py-1.5 rounded-lg text-white text-xs transition">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -264,18 +319,50 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
         <div className="px-4 py-2 bg-red-600/10 border-b border-red-600/30 text-red-400 text-xs">{saveError}</div>
       )}
 
+      {/* 逐节点运行结果 */}
+      {runResults && (
+        <div className="px-4 py-2 bg-gray-900/80 border-b border-gray-700 max-h-40 overflow-y-auto shrink-0">
+          {nodes.map((n) => {
+            const d = n.data as AgentNodeData;
+            const r = runResults[n.id];
+            if (!r) return null;
+            const def = getAgentDef(d.agent_type);
+            const statusColor =
+              r.status === "success"
+                ? "text-green-400"
+                : r.status === "failed" || r.status === "blocked"
+                ? "text-red-400"
+                : r.status === "timeout" || r.status === "skipped"
+                ? "text-yellow-400"
+                : "text-gray-400";
+            return (
+              <div key={n.id} className="text-xs py-1.5 border-b border-gray-800 last:border-0">
+                <div className="flex items-center gap-2">
+                  <span className={`font-medium ${statusColor}`}>{def?.name || d.agent_type}</span>
+                  <span className="text-gray-500">
+                    {r.status} · {r.duration_ms}ms{r.retries ? ` · 重试${r.retries}次` : ""}
+                  </span>
+                </div>
+                {r.error && <div className="text-red-400 mt-0.5">{r.error}</div>}
+                {r.output && (
+                  <div className="text-gray-400 mt-0.5 line-clamp-3 whitespace-pre-wrap">{r.output}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Main area */}
       <div className="flex-1 flex min-h-0">
         <AgentPalette />
-        <div className="flex-1 relative">
+        <div className="flex-1 relative" onDrop={onDrop} onDragOver={onDragOver}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             onInit={(instance) => { rfInstance.current = instance; }}

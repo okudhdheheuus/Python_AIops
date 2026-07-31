@@ -26,6 +26,7 @@ export function getAgentDef(type: string): AgentTypeDef | undefined {
 export interface ApiWorkflowNode {
   id: string;
   agent_type: string;
+  position?: { x: number; y: number };
   prompt?: string;
   server_id?: string;
   timeout?: number;
@@ -47,4 +48,5 @@ export type AgentNodeData = {
   max_retries: number;
   condition: string;
   config: Record<string, unknown>;
+  run_status?: string;
 } & { [key: string]: unknown };
