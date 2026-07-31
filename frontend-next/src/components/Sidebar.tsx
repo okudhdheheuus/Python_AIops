@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Server, Bell, MessageSquare, Activity, LogOut, User, Bot, Workflow, BookOpen, FileText, BellRing, ShieldCheck, Settings, ChevronLeft, ChevronRight } from "lucide-react";
@@ -23,14 +23,12 @@ const links = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout, isAuthenticated } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("sidebarCollapsed");
-    if (saved === "1") setCollapsed(true);
-    setMounted(true);
-  }, []);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sidebarCollapsed") === "1";
+    }
+    return false;
+  });
 
   function toggle() {
     setCollapsed((v) => {
@@ -39,12 +37,9 @@ export default function Sidebar() {
     });
   }
 
-  if (!mounted) {
-    return <aside className="w-56 bg-gray-800/50 border-r border-gray-700 shrink-0" />;
-  }
-
   return (
     <aside
+      suppressHydrationWarning
       className={`bg-gray-800/50 border-r border-gray-700 flex flex-col shrink-0 transition-all duration-200 ${
         collapsed ? "w-[60px] px-2 py-4" : "w-56 p-4"
       }`}
