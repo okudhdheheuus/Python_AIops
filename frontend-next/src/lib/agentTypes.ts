@@ -17,6 +17,9 @@ export const AGENT_TYPES: AgentTypeDef[] = [
   { type: "change_executor",    name: "变更执行",   description: "生成变更计划和回滚方案",     color: "#10b981", icon: "GitBranch",     needsServer: false },
   { type: "doc_generator",      name: "文档生成",   description: "生成运维文档和报告",        color: "#14b8a6", icon: "FileText",      needsServer: false },
   { type: "compliance_checker", name: "合规检查",   description: "安全基线审计和合规评分",     color: "#f97316", icon: "ShieldCheck",   needsServer: true  },
+  { type: "shell_command",     name: "命令执行",   description: "直接在服务器上执行Shell命令",   color: "#06b6d4", icon: "Terminal",      needsServer: true  },
+  { type: "health_check",      name: "健康检查",   description: "HTTP GET检查服务是否正常",      color: "#22c55e", icon: "Globe",         needsServer: false },
+  { type: "webhook",           name: "通知推送",   description: "将结果POST到Webhook/机器人",    color: "#a855f7", icon: "Send",          needsServer: false },
 ];
 
 export function getAgentDef(type: string): AgentTypeDef | undefined {

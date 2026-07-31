@@ -1,11 +1,12 @@
 "use client";
 
 import type { DragEvent } from "react";
-import { Bot, Cpu, Stethoscope, Wrench, Bell, ScrollText, GitBranch, FileText, ShieldCheck } from "lucide-react";
+import { Bot, Cpu, Stethoscope, Wrench, Bell, ScrollText, GitBranch, FileText, ShieldCheck, Terminal, Globe, Send } from "lucide-react";
 import { AGENT_TYPES, getAgentDef } from "@/lib/agentTypes";
 
 const iconMap: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   Bot, Cpu, Stethoscope, Wrench, Bell, ScrollText, GitBranch, FileText, ShieldCheck,
+  Terminal, Globe, Send,
 };
 
 export default function AgentPalette() {

@@ -4,12 +4,14 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
   Bot, Cpu, Stethoscope, Wrench, Bell, ScrollText,
-  GitBranch, FileText, ShieldCheck, Server, type LucideIcon,
+  GitBranch, FileText, ShieldCheck, Terminal, Globe, Send, Server,
+  type LucideIcon,
 } from "lucide-react";
 import { getAgentDef, type AgentNodeData } from "@/lib/agentTypes";
 
 const iconMap: Record<string, LucideIcon> = {
   Bot, Cpu, Stethoscope, Wrench, Bell, ScrollText, GitBranch, FileText, ShieldCheck,
+  Terminal, Globe, Send,
 };
 
 const STATUS_GLOW: Record<string, string> = {

@@ -674,6 +674,116 @@ class AgentExecutor:
         answer = await call_llm(full_prompt, system_prompt, temperature=0.7, user_llm_config=self.user_llm_config)
         return {"output": answer, "agent": "generic"}
 
+    # ===== 实用操作节点（不依赖 LLM） =====
+
+    async def _handle_shell_command(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
+        """直接执行 Shell 命令，跳过 LLM 生成步骤。prompt 字段 = 要执行的命令"""
+        server_result = await self._get_server(server_id, server_msg)
+        if isinstance(server_result, dict):
+            return server_result
+        cred_error = self._validate_server_credential(server_result)
+        if cred_error:
+            return {"status": "failed", "output": cred_error, "agent": "shell_command"}
+
+        commands = (input_text or "").strip()
+        if not commands:
+            return {"status": "failed", "output": "未提供要执行的命令", "agent": "shell_command"}
+
+        blocked_reason = self._check_dangerous(commands)
+        if blocked_reason:
+            return {"status": "blocked", "output": f"命令被安全策略拦截: {blocked_reason}",
+                    "agent": "shell_command", "commands": commands}
+
+        start = time_module.perf_counter()
+        try:
+            async with pool.get_connection(
+                host=server_result.host, port=server_result.port,
+                username=server_result.username,
+                password=server_result.password if not server_result.use_ssh_key else None,
+                private_key=server_result.private_key if server_result.use_ssh_key else None,
+            ) as conn:
+                result = await asyncio.wait_for(
+                    conn.run(commands, check=False, timeout=timeout),
+                    timeout=timeout + 5,
+                )
+                duration_ms = int((time_module.perf_counter() - start) * 1000)
+                exit_code = result.exit_status if hasattr(result, "exit_status") else -1
+                output = (result.stdout or "")[:4000]
+                stderr = (result.stderr or "")[:1000]
+                return {
+                    "status": "success" if exit_code == 0 else "partial",
+                    "output": output or stderr or f"(exit code {exit_code})",
+                    "agent": "shell_command",
+                    "commands": commands,
+                    "exit_code": exit_code,
+                    "duration_ms": duration_ms,
+                    "stderr": stderr if exit_code != 0 else "",
+                }
+        except asyncio.TimeoutError:
+            return {"status": "timeout", "output": f"命令超时({timeout}s)", "agent": "shell_command", "commands": commands}
+        except Exception as e:
+            return {"status": "failed", "output": f"SSH 执行失败: {e}", "agent": "shell_command", "commands": commands}
+
+    async def _handle_health_check(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
+        """HTTP GET 健康检查，不依赖 SSH 和 LLM。prompt 字段 = URL"""
+        import urllib.request
+
+        url = (input_text or "").strip()
+        if url.upper().startswith("GET "):
+            url = url[4:].strip()
+        if not url.startswith(("http://", "https://")):
+            return {"status": "failed", "output": f"无效的 URL (需要 http/https): {url[:100]}", "agent": "health_check"}
+
+        start = time_module.perf_counter()
+        try:
+            req = urllib.request.Request(url, method="GET")
+            resp = await asyncio.to_thread(urllib.request.urlopen, req, None, min(timeout, 15))
+            duration_ms = int((time_module.perf_counter() - start) * 1000)
+            body = resp.read().decode("utf-8", errors="replace")[:400]
+            ok = 200 <= resp.status < 400
+            return {
+                "status": "success" if ok else "partial",
+                "output": f"HTTP {resp.status} {resp.reason} ({duration_ms}ms)\n{body}",
+                "agent": "health_check",
+                "status_code": resp.status,
+                "duration_ms": duration_ms,
+            }
+        except Exception as e:
+            duration_ms = int((time_module.perf_counter() - start) * 1000)
+            return {"status": "failed", "output": f"健康检查失败: {e}", "agent": "health_check", "duration_ms": duration_ms}
+
+    async def _handle_webhook(self, input_text: str, server_id: str, server_msg: str, timeout: int) -> dict:
+        """POST 通知到 Webhook URL，用于告警/结果推送。prompt 字段 = URL"""
+        import json as _json
+        import urllib.request
+
+        url = (input_text or "").strip()
+        if not url.startswith(("http://", "https://")):
+            return {"status": "failed", "output": f"无效的 Webhook URL: {url[:100]}", "agent": "webhook"}
+
+        payload = _json.dumps({
+            "source": "ITOps Workflow",
+            "timestamp": time_module.strftime("%Y-%m-%d %H:%M:%S"),
+            "message": input_text[:2000],
+        }).encode("utf-8")
+
+        start = time_module.perf_counter()
+        try:
+            req = urllib.request.Request(url, data=payload, method="POST")
+            req.add_header("Content-Type", "application/json")
+            resp = await asyncio.to_thread(urllib.request.urlopen, req, None, min(timeout, 10))
+            duration_ms = int((time_module.perf_counter() - start) * 1000)
+            return {
+                "status": "success" if resp.status < 400 else "partial",
+                "output": f"Webhook HTTP {resp.status} ({duration_ms}ms)",
+                "agent": "webhook",
+                "http_status": resp.status,
+                "duration_ms": duration_ms,
+            }
+        except Exception as e:
+            duration_ms = int((time_module.perf_counter() - start) * 1000)
+            return {"status": "failed", "output": f"Webhook 发送失败: {e}", "agent": "webhook", "duration_ms": duration_ms}
+
     # ===== 辅助方法 =====
 
     async def _get_server(self, server_id: str | None = None, server_msg: str | None = None):

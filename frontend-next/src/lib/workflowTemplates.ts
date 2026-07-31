@@ -8,9 +8,93 @@ export interface WorkflowTemplate {
 
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
-    id: "server-inspection",
-    name: "服务器巡检",
-    description: "指标采集 → 日志分析 → 自动生成巡检报告（串行链，演示上游输出串联）",
+    id: "health-monitor",
+    name: "服务健康监控",
+    description: "HTTP健康检查 → 结果推送到Webhook（不需SSH、不需AI Key）",
+    nodes: [
+      {
+        id: "health-node",
+        agent_type: "health_check",
+        position: { x: 0, y: 0 },
+        prompt: "https://www.baidu.com",
+        timeout: 30,
+        max_retries: 1,
+      },
+      {
+        id: "notify-node",
+        agent_type: "webhook",
+        position: { x: 360, y: 0 },
+        prompt: "https://your-webhook-url.example",
+        timeout: 15,
+        max_retries: 1,
+      },
+    ],
+    edges: [{ source: "health-node", target: "notify-node" }],
+  },
+  {
+    id: "disk-patrol",
+    name: "磁盘巡检告警",
+    description: "SSH查看磁盘 → 发送告警（需要服务器SSH，不需AI Key）",
+    nodes: [
+      {
+        id: "disk-node",
+        agent_type: "shell_command",
+        position: { x: 0, y: 0 },
+        prompt: "echo '磁盘使用情况:'; df -h / | awk 'NR==2{print \"  使用率: \"$5\", 已用: \"$3\", 总量: \"$2}'",
+        timeout: 30,
+        max_retries: 1,
+        condition: "",
+      },
+      {
+        id: "alert-node",
+        agent_type: "webhook",
+        position: { x: 360, y: 0 },
+        prompt: "https://your-webhook-url.example",
+        timeout: 15,
+        max_retries: 1,
+      },
+    ],
+    edges: [{ source: "disk-node", target: "alert-node" }],
+  },
+  {
+    id: "log-scan",
+    name: "日志错误扫描",
+    description: "SSH抓取错误日志 → AI分析 → 报告推送（需SSH + AI Key）",
+    nodes: [
+      {
+        id: "grep-node",
+        agent_type: "shell_command",
+        position: { x: 0, y: 0 },
+        prompt: "grep -i 'error\|failed\|fatal' /var/log/syslog 2>/dev/null | tail -30 || echo '无系统日志'",
+        timeout: 30,
+        max_retries: 1,
+      },
+      {
+        id: "analyze-node",
+        agent_type: "log_analyzer",
+        position: { x: 360, y: 0 },
+        prompt: "分析上游命令输出中的错误日志，找出最严重的问题并给出处理建议",
+        timeout: 120,
+        max_retries: 2,
+      },
+      {
+        id: "report-node",
+        agent_type: "webhook",
+        position: { x: 720, y: 0 },
+        prompt: "https://your-webhook-url.example",
+        timeout: 15,
+        max_retries: 1,
+      },
+    ],
+    edges: [
+      { source: "grep-node", target: "analyze-node" },
+      { source: "analyze-node", target: "report-node" },
+    ],
+  },
+  {
+    id: "full-inspection",
+    name: "服务器全量巡检",
+    description: "指标采集 → AI分析 → 自动生成巡检报告（需SSH + AI Key）",
     nodes: [
       {
         id: "monitor-node",
@@ -41,54 +125,5 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { source: "monitor-node", target: "log-node" },
       { source: "log-node", target: "doc-node" },
     ],
-  },
-  {
-    id: "diagnose-and-repair",
-    name: "故障诊断与修复",
-    description: "故障诊断 → 自动修复（需要在节点配置中选择目标服务器，演示条件分支）",
-    nodes: [
-      {
-        id: "diag-node",
-        agent_type: "diagnostic",
-        position: { x: 0, y: 0 },
-        prompt: "服务器响应缓慢，请排查 CPU / 内存 / 磁盘 / 网络瓶颈，找出根因",
-        timeout: 60,
-        max_retries: 2,
-      },
-      {
-        id: "repair-node",
-        agent_type: "remediation",
-        position: { x: 360, y: 0 },
-        prompt: "根据诊断结果执行最安全的修复操作，并验证修复效果",
-        condition: "contains:建议",
-        timeout: 90,
-        max_retries: 2,
-      },
-    ],
-    edges: [{ source: "diag-node", target: "repair-node" }],
-  },
-  {
-    id: "alert-analysis",
-    name: "告警分析与交接报告",
-    description: "分析当前活跃告警 → 生成值班交接报告（纯 LLM 节点，无需 SSH）",
-    nodes: [
-      {
-        id: "alert-node",
-        agent_type: "alert_analyzer",
-        position: { x: 0, y: 0 },
-        prompt: "分析当前最严重的活跃告警，评估紧急程度（P0-P4）并给出处理建议",
-        timeout: 60,
-        max_retries: 2,
-      },
-      {
-        id: "report-node",
-        agent_type: "doc_generator",
-        position: { x: 360, y: 0 },
-        prompt: "将告警分析结果整理成一份值班交接报告",
-        timeout: 60,
-        max_retries: 2,
-      },
-    ],
-    edges: [{ source: "alert-node", target: "report-node" }],
   },
 ];
