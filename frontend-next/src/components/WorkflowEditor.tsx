@@ -55,6 +55,14 @@ interface Props {
   onWorkflowCreated?: (id: string) => void;
 }
 
+// crypto.randomUUID 仅在 HTTPS/localhost 安全上下文可用，HTTP 部署下回退到普通随机 id
+function makeId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `node-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function apiToFlowNodes(nodes: unknown[]): Node[] {
   return (nodes as Array<Record<string, unknown>>).map((n, i) => ({
     id: (n.id as string) || `node-${i}`,
@@ -149,30 +157,36 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
 
     function handleDrop(e: Event) {
       e.preventDefault();
-      const de = e as globalThis.DragEvent;
-      const agentType = de.dataTransfer?.getData("application/reactflow-agent-type");
-      if (!agentType || !rfInstance.current) return;
-      const position = rfInstance.current.screenToFlowPosition({
-        x: de.clientX,
-        y: de.clientY,
-      });
-      setNodes((nds) => [
-        ...nds,
-        {
-          id: crypto.randomUUID(),
-          type: "agentNode",
-          position,
-          data: {
-            agent_type: agentType,
-            prompt: "",
-            server_id: null,
-            timeout: 60,
-            max_retries: 2,
-            condition: "",
-            config: {},
+      try {
+        const de = e as globalThis.DragEvent;
+        const agentType =
+          de.dataTransfer?.getData("application/reactflow-agent-type") ||
+          de.dataTransfer?.getData("text/plain");
+        if (!agentType || !rfInstance.current) return;
+        const position = rfInstance.current.screenToFlowPosition({
+          x: de.clientX,
+          y: de.clientY,
+        });
+        setNodes((nds) => [
+          ...nds,
+          {
+            id: makeId(),
+            type: "agentNode",
+            position,
+            data: {
+              agent_type: agentType,
+              prompt: "",
+              server_id: null,
+              timeout: 60,
+              max_retries: 2,
+              condition: "",
+              config: {},
+            },
           },
-        },
-      ]);
+        ]);
+      } catch (err) {
+        console.error("拖放节点失败:", err);
+      }
     }
 
     el.addEventListener("dragover", handleDragOver, true);

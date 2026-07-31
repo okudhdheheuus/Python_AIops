@@ -10,7 +10,9 @@ const iconMap: Record<string, React.ComponentType<{ size?: number; className?: s
 
 export default function AgentPalette() {
   function onDragStart(event: DragEvent, agentType: string) {
+    // 同时写入自定义类型和 text/plain，兼容部分浏览器对自定义 MIME 类型读取的差异
     event.dataTransfer.setData("application/reactflow-agent-type", agentType);
+    event.dataTransfer.setData("text/plain", agentType);
     event.dataTransfer.effectAllowed = "move";
   }
 
