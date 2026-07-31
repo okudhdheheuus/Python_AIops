@@ -502,10 +502,10 @@ class AgentExecutor:
         if cred_error:
             return {"status": "failed", "output": cred_error, "agent": "monitor"}
 
-        result: dict = {"agent": "monitor"}
+        result: dict = {"agent": "monitor", "status": "failed"}
+        metrics_collected = False
 
         # 先采集结构化指标（直接从 /proc/stat、free、df 提取数值）
-        # 不依赖 AI，确保 patrol_job 能拿到 cpu/memory/disk 数值
         try:
             metrics_cmd = (
                 "cpu=$(grep '^cpu ' /proc/stat | awk "
@@ -543,19 +543,33 @@ class AgentExecutor:
                             result["disk"] = float(line.split(":", 1)[1])
                         except ValueError:
                             pass
-        except Exception:
-            pass
+                metrics_collected = True
+        except asyncio.TimeoutError:
+            result["ssh_error"] = f"SSH 连接超时 ({server_result.host}:{server_result.port})"
+        except Exception as e:
+            result["ssh_error"] = f"SSH 连接失败 ({server_result.host}:{server_result.port}): {e!s}"
 
-        # 再运行 AI 管道生成分析报告（失败不影响已采集的指标数值）
+        # 再运行 AI 管道生成分析报告
         try:
             ai_result = await self._ai_execute_on_server(
                 "monitor", input_text or "采集全部系统指标", server_result, timeout
             )
             result.update(ai_result)
         except Exception:
-            if "status" not in result:
+            if not metrics_collected:
+                ssh_err = result.get("ssh_error", "")
+                result["output"] = (
+                    f"指标采集失败。\n\n"
+                    f"目标: {server_result.host}:{server_result.port}\n"
+                    f"{'SSH: ' + ssh_err if ssh_err else '未配置 LLM API Key，无法生成分析报告'}\n\n"
+                    f"请检查:\n"
+                    f"1. 服务器管理中是否配置了 SSH 密码或密钥\n"
+                    f"2. 用户设置中是否配置了 LLM API Key\n"
+                    f"3. 服务器端口 {server_result.port} 是否可达"
+                )
+            else:
                 result["status"] = "partial"
-                result["output"] = "AI 分析失败，但结构化指标采集成功"
+                result["output"] = "结构化指标采集成功，但 AI 分析失败（LLM API Key 未配置或调用出错）"
 
         return result
 
