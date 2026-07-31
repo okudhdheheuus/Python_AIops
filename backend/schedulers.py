@@ -173,8 +173,10 @@ async def patrol_job():
                 log_alerts = await _run_log_patrol(server, db)
                 if log_alerts > 0:
                     logger.info(f"[巡检] {server.name} 日志巡检发现 {log_alerts} 条事件")
-            except Exception:
-                pass
+                else:
+                    logger.debug(f"[巡检] {server.name} 日志巡检未发现事件")
+            except Exception as e:
+                logger.warning(f"[巡检] {server.name} 日志巡检异常: {e}")
 
         await db.commit()
     logger.info("[巡检任务] 结束")

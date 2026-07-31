@@ -6,10 +6,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import PatrolRecord, User
+from ..schedulers import patrol_job
 from ..schemas import PatrolRecord as PatrolRecordSchema
 from ..utils.security import get_current_active_user
 
 router = APIRouter()
+
+
+@router.post("/run", status_code=200)
+async def trigger_patrol(
+    current_user: User = Depends(get_current_active_user),
+):
+    """手动触发一次完整巡检（含指标采集 + 日志事件检测）"""
+    try:
+        await patrol_job()
+        return {"status": "completed"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
 @router.get("/records")
 async def list_patrol_records(
