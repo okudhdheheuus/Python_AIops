@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Alert, Server, SilenceRule, User
+from ..models import Alert, Server, SilenceRule, User, UserLLMConfig
 from ..schemas import AlertOut, AlertUpdate, WebhookPayload
 from ..services.agent_executor import AgentExecutor, trigger_auto_remediation
 from ..services.notification_service import (
@@ -225,7 +225,12 @@ async def remediate_alert_manual(
     if alert.status != "firing":
         raise HTTPException(status_code=400, detail="只能修复活跃(firing)告警")
 
-    executor = AgentExecutor()
+    user_llm_config = (
+        await db.execute(
+            select(UserLLMConfig).where(UserLLMConfig.user_id == current_user.id)
+        )
+    ).scalar_one_or_none()
+    executor = AgentExecutor(user_llm_config=user_llm_config)
     result = await executor.remediate_alert(
         alert_id=alert_id,
         server_id=alert.server_id,

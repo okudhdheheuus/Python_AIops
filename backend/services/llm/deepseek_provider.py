@@ -62,7 +62,7 @@ class DeepSeekProvider(BaseLLMProvider):
             )
             return content
         except Exception:
-            llm_requests_total.labels(provider=provider, status="error").inc().inc()
+            llm_requests_total.labels(provider=provider, status="error").inc()
             logger.exception(f"{provider} API call failed")
             raise
 
