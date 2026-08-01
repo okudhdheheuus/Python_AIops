@@ -44,9 +44,9 @@ def get_llm_provider(user_config: Any = None) -> BaseLLMProvider:
         if provider_name == "deepseek":
             _providers[provider_name] = DeepSeekProvider()
         elif provider_name == "openai":
-            _providers[provider_name] = OpenAIProvider()
+            _providers[provider_name] = OpenAIProvider(api_key=settings.openai_api_key)
         elif provider_name == "glm":
-            _providers[provider_name] = GLMProvider()
+            _providers[provider_name] = GLMProvider(api_key=settings.glm_api_key)
         else:
             raise ValueError(f"不支持的LLM Provider: {provider_name}")
     return _providers[provider_name]

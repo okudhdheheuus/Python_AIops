@@ -278,7 +278,24 @@ class AgentExecutor:
         )
 
         # 执行AI修复管道
-        result = await self._ai_execute_on_server("ai_remediation", repair_prompt, server, 60)
+        try:
+            result = await self._ai_execute_on_server("ai_remediation", repair_prompt, server, 60)
+        except Exception as exc:
+            logger.exception(f"[AI修复] 执行异常 alert={alert_id}")
+            duration_ms = int((time_module.time() - start_time) * 1000)
+            await self._update_remediation_log(
+                log_id, status="failed",
+                error_output=f"修复执行异常: {exc!s}",
+                duration_ms=duration_ms,
+            )
+            return {
+                "status": "failed",
+                "output": f"AI修复执行异常: {exc!s}",
+                "alert_id": alert_id,
+                "alert_name": alert.alert_name,
+                "server_name": server.name,
+                "log_id": log_id,
+            }
 
         # 更新日志
         duration_ms = int((time_module.time() - start_time) * 1000)
