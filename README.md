@@ -186,12 +186,13 @@ Prometheus Webhook → 告警入库(去重) → RAG 知识检索 → LLM 生成�
 git clone https://github.com/okudhdheheuus/Python_AIops.git
 cd Python_AIops
 
-# 2. （可选）配置 LLM API Key — 不配置也能启动，AI 功能需要 Key
-# 编辑 docker-compose.yml，填写 GLM_API_KEY
-# 免费申请：https://open.bigmodel.cn/ → 注册 → API Keys → 创建
+# 2. （可选）配置环境变量
+cp .env.example .env
+# 编辑 .env，填入 LLM API Key（免费申请：https://open.bigmodel.cn/）
+# 不配置也能启动，AI 功能需要 Key
 
-# 3. 启动全部服务（PostgreSQL + Redis + Backend + Frontend）
-docker compose up -d
+# 3. 构建并启动全部服务
+docker compose up -d --build
 
 # 4. 查看日志确认启动成功
 docker compose logs -f backend

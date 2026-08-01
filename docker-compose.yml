@@ -24,16 +24,18 @@ services:
       retries: 5
 
   backend:
-    image: crpi-0pts6ks97slw904m.cn-chengdu.personal.cr.aliyuncs.com/itops/itops-backend:main
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     environment:
       ENVIRONMENT: production
-      SECRET_KEY: change-me-in-production-use-a-real-secret
+      SECRET_KEY: change-me-in-production-use-openssl-rand-hex-32
       DATABASE_URL: postgresql+asyncpg://itops:itops123@postgres:5432/itops
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      CORS_ORIGINS: "http://localhost:3000,http://8.137.178.63:3000"
+      CORS_ORIGINS: "http://localhost:3000"
       GLM_API_KEY: ""
       HF_ENDPOINT: https://hf-mirror.com
       HF_HOME: /app/.cache/huggingface
@@ -47,7 +49,9 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: crpi-0pts6ks97slw904m.cn-chengdu.personal.cr.aliyuncs.com/itops/itops-frontend:main
+    build:
+      context: frontend-next
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
