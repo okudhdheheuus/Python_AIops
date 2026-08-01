@@ -66,6 +66,23 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("Knowledge base seeding skipped")
 
+    # 清理上次异常退出遗留的"执行中"修复记录
+    try:
+        from sqlalchemy import update
+
+        from .database import AsyncSessionLocal
+        from .models import RemediationLog
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                update(RemediationLog)
+                .where(RemediationLog.status == "running")
+                .values(status="failed", error_output="Server restarted before completion")
+            )
+            if result.rowcount:
+                logger.info(f"Cleaned up {result.rowcount} stale running remediation log(s)")
+    except Exception:
+        logger.warning("Stale remediation cleanup skipped")
+
     yield
     # -----Shutdown-----
     await shutdown_scheduler()

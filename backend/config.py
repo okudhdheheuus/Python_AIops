@@ -32,13 +32,16 @@ class Settings(BaseSettings):
     redis_url: str = "" # 如果设置，直接使用完整的Redis URL
 
     # ======LLM / AI =============
-    llm_provider: str = "deepseek"  # deepseek | openai
+    llm_provider: str = "glm"  # glm | deepseek | openai
     deepseek_api_key: str = ""
     deepseek_api_base: str = "https://api.deepseek.com/v1"
     deepseek_model: str = "deepseek-v4-flash"
     openai_api_key: str = ""
     openai_api_base: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-3.5-turbo"
+    glm_api_key: str = ""
+    glm_api_base: str = "https://open.bigmodel.cn/api/paas/v4"
+    glm_model: str = "glm-4-flash"
 
     # ====巡检阈值=======
     cpu_threshold: float = 90.0

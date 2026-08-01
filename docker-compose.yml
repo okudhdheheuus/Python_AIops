@@ -34,6 +34,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       CORS_ORIGINS: "http://localhost:3000,http://8.137.178.63:3000"
+      GLM_API_KEY: ""
       HF_ENDPOINT: https://hf-mirror.com
       HF_HOME: /app/.cache/huggingface
     volumes:

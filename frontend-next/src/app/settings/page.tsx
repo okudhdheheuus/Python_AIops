@@ -5,6 +5,7 @@ import { Settings, Loader2, CheckCircle, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 const PROVIDER_OPTIONS = [
+  { value: "glm", label: "GLM (智谱·免费)" },
   { value: "deepseek", label: "DeepSeek" },
   { value: "openai", label: "OpenAI" },
 ];
@@ -42,7 +43,7 @@ export default function SettingsPage() {
   const [llmLoading, setLlmLoading] = useState(false);
   const [llmSaving, setLlmSaving] = useState(false);
   const [llmMsg, setLlmMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [llmForm, setLlmForm] = useState({ provider: "deepseek", api_key: "", api_base: "", model: "" });
+  const [llmForm, setLlmForm] = useState({ provider: "glm", api_key: "", api_base: "", model: "" });
 
   // Agent config state
   const [agentLoading, setAgentLoading] = useState(false);
@@ -61,7 +62,7 @@ export default function SettingsPage() {
         const data: LLMConfig = await resp.json();
         setLlmConfig(data);
         setLlmForm({
-          provider: data.provider || "deepseek",
+          provider: data.provider || "glm",
           api_key: "",
           api_base: data.api_base || "",
           model: data.model || "",

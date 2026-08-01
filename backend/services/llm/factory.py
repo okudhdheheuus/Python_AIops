@@ -3,6 +3,7 @@ from typing import Any
 from ...config import settings
 from .base import BaseLLMProvider
 from .deepseek_provider import DeepSeekProvider
+from .glm_provider import GLMProvider
 from .openai_provider import OpenAIProvider
 
 _providers: dict[str, BaseLLMProvider] = {}
@@ -28,6 +29,12 @@ def get_llm_provider(user_config: Any = None) -> BaseLLMProvider:
                 api_base=getattr(user_config, "api_base", None) or None,
                 model=getattr(user_config, "model", None) or None,
             )
+        elif provider_name == "glm":
+            return GLMProvider(
+                api_key=user_config.api_key,
+                api_base=getattr(user_config, "api_base", None) or None,
+                model=getattr(user_config, "model", None) or None,
+            )
         else:
             raise ValueError(f"不支持的LLM Provider: {provider_name}")
 
@@ -38,6 +45,8 @@ def get_llm_provider(user_config: Any = None) -> BaseLLMProvider:
             _providers[provider_name] = DeepSeekProvider()
         elif provider_name == "openai":
             _providers[provider_name] = OpenAIProvider()
+        elif provider_name == "glm":
+            _providers[provider_name] = GLMProvider()
         else:
             raise ValueError(f"不支持的LLM Provider: {provider_name}")
     return _providers[provider_name]
