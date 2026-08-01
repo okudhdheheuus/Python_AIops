@@ -183,6 +183,22 @@ export default function SettingsPage() {
         <p className="text-sm text-gray-400 mb-4">
           配置你的个人 API Key，留空则使用全局默认配置。API Key 仅保存后四位可见。
         </p>
+        {/* 免费 API Key 提示 */}
+        <div className="mb-4 bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-500/30 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl shrink-0">🎁</span>
+            <div className="text-sm space-y-1">
+              <p className="text-blue-300 font-medium">没有 API Key？GLM-4-Flash 免费申请</p>
+              <p className="text-gray-400">
+                前往 <a href="https://open.bigmodel.cn/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">智谱AI开放平台 (open.bigmodel.cn)</a> 注册账号，
+                在「API Keys」页面创建一个 API Key，选择 <strong className="text-white">GLM-4-Flash</strong> 模型即可<strong className="text-green-400">免费使用</strong>。
+              </p>
+              <p className="text-gray-500 text-xs">
+                填入 Key 后，Provider 选择「GLM (智谱·免费)」，Model 填 <code className="text-gray-400 bg-gray-800 px-1 rounded">glm-4-flash</code>，保存即可开始使用 AI 功能。
+              </p>
+            </div>
+          </div>
+        </div>
         {llmLoading ? (
           <div className="text-gray-400">加载中...</div>
         ) : (
