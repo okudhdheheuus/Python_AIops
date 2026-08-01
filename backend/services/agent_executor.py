@@ -309,6 +309,12 @@ class AgentExecutor:
             duration_ms=duration_ms,
         )
 
+        # 更新告警状态：成功则解决，失败保持 firing
+        if result.get("status") == "success":
+            await self._update_alert_status(alert_id, "resolved")
+        elif result.get("status") not in ("running", "pending"):
+            await self._update_alert_status(alert_id, "acknowledged")
+
         # 发送修复结果通知
         try:
             from .notification_service import send_notification
@@ -985,6 +991,26 @@ class AgentExecutor:
                 return server
 
         return {"status": "failed", "output": "缺少服务器标识，请从服务器下拉列表中选择目标服务器"}
+
+    async def _update_alert_status(self, alert_id: str, status: str):
+        """更新告警状态"""
+        try:
+            from datetime import datetime, timezone
+
+            from sqlalchemy import update
+
+            from ..database import AsyncSessionLocal
+            from ..models import Alert
+            async with AsyncSessionLocal() as db:
+                values = {"status": status}
+                if status == "resolved":
+                    values["resolved_at"] = datetime.now(tz=timezone.utc)
+                await db.execute(
+                    update(Alert).where(Alert.id == alert_id).values(**values)
+                )
+                await db.commit()
+        except Exception:
+            logger.exception(f"更新告警状态失败 alert={alert_id} status={status}")
 
     def _validate_server_credential(self, server: Server) -> str | None:
         """验证服务器是否有可用的SSH凭据"""

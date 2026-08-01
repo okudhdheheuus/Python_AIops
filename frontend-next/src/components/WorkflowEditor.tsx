@@ -14,7 +14,7 @@ import {
   type Connection,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { Play, Loader2, Save, X, Workflow, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Play, Loader2, Save, X, Workflow, Download, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, FileDown } from "lucide-react";
 import { nodeTypes } from "@/components/AgentNode";
 import AgentPalette from "@/components/AgentPalette";
 import NodeConfigPanel from "@/components/NodeConfigPanel";
@@ -133,6 +133,13 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
   const [runResults, setRunResults] = useState<Record<string, NodeRunResult> | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [expandedOutputs, setExpandedOutputs] = useState<Set<string>>(new Set());
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 运行中计时器清理
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
 
   function downloadOutput(filename: string, content: string) {
     const ext = content.trimStart().startsWith("##") || content.includes("###") ? ".md" : ".txt";
@@ -256,6 +263,15 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
     setRunning(true);
     setRunResult(null);
     setRunResults(null);
+    setExpandedOutputs(new Set());
+    setElapsedMs(0);
+    // 启动计时器
+    const startTime = Date.now();
+    timerRef.current = setInterval(() => setElapsedMs(Date.now() - startTime), 200);
+    // 立即设置所有节点为运行中，提供即时视觉反馈
+    setNodes((nds) =>
+      nds.map((n) => ({ ...n, data: { ...(n.data as AgentNodeData), run_status: "running" } }))
+    );
     try {
       if (nodes.length === 0) {
         setRunResult("请先添加节点再运行");
@@ -305,6 +321,7 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
     } catch (e: unknown) {
       setRunResult(`运行失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       setRunning(false);
     }
   }
@@ -364,76 +381,148 @@ export default function WorkflowEditor({ workflow, servers, authFetch, onSaved, 
         <div className="px-4 py-2 bg-red-600/10 border-b border-red-600/30 text-red-400 text-xs">{saveError}</div>
       )}
 
+      {/* 运行中进度提示 */}
+      {running && (
+        <div className="px-4 py-2 bg-blue-600/10 border-b border-blue-600/30 text-blue-400 text-xs flex items-center gap-2 shrink-0">
+          <Loader2 size={14} className="animate-spin" />
+          <span className="font-medium">执行中</span>
+          <Clock size={12} />
+          <span>{(elapsedMs / 1000).toFixed(1)}s</span>
+          <span className="text-gray-500 ml-2">
+            节点 {nodes.filter(n => (n.data as AgentNodeData).run_status === "running").length}/{nodes.length} 运行中
+          </span>
+        </div>
+      )}
+
       {/* 逐节点运行结果 */}
-      {runResults && (
-        <div className="px-4 py-2 bg-gray-900/80 border-b border-gray-700 max-h-40 overflow-y-auto shrink-0">
-          {nodes.map((n) => {
-            const d = n.data as AgentNodeData;
-            const r = runResults[n.id];
-            if (!r) return null;
-            const def = getAgentDef(d.agent_type);
-            const statusColor =
-              r.status === "success"
-                ? "text-green-400"
-                : r.status === "failed" || r.status === "blocked"
-                ? "text-red-400"
-                : r.status === "timeout" || r.status === "skipped"
-                ? "text-yellow-400"
-                : "text-gray-400";
-            return (
-              <div key={n.id} className="text-xs py-1.5 border-b border-gray-800 last:border-0">
-                <div className="flex items-center gap-2">
-                  <span className={`font-medium ${statusColor}`}>{def?.name || d.agent_type}</span>
-                  <span className="text-gray-500">
-                    {r.status} · {r.duration_ms}ms{r.retries ? ` · 重试${r.retries}次` : ""}
-                  </span>
-                </div>
-                {r.error && <div className="text-red-400 mt-0.5">{r.error}</div>}
-                {r.commands && (
-                  <details className="mt-1">
-                    <summary className="text-gray-500 cursor-pointer hover:text-gray-400">生成命令</summary>
-                    <pre className="text-gray-400 mt-0.5 bg-gray-950 px-2 py-1 rounded text-[10px] overflow-x-auto whitespace-pre-wrap">{r.commands}</pre>
-                  </details>
-                )}
-                {r.output && (
-                  <div>
-                    <div
-                      className={`text-gray-400 mt-0.5 whitespace-pre-wrap cursor-pointer hover:text-gray-300 transition-colors ${expandedOutputs.has(n.id) ? "" : "line-clamp-3"}`}
-                      onClick={() => setExpandedOutputs((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(n.id)) next.delete(n.id);
-                        else next.add(n.id);
-                        return next;
-                      })}
-                      title={expandedOutputs.has(n.id) ? "点击收起" : "点击展开"}
-                    >
-                      {r.output}
-                    </div>
-                    {r.output.length > 200 && (
-                      <span className="text-[10px] text-gray-600">
-                        {expandedOutputs.has(n.id) ? <ChevronUp size={10} className="inline" /> : <ChevronDown size={10} className="inline" />}
-                        {" "}{expandedOutputs.has(n.id) ? "收起" : "展开全部"}
-                      </span>
+      {runResults && !running && (
+        <div className="bg-gray-900/80 border-b border-gray-700 shrink-0 flex flex-col" style={{ maxHeight: "45vh" }}>
+          {/* 结果工具栏 */}
+          <div className="flex items-center gap-2 px-4 py-2 bg-gray-800/60 border-b border-gray-700 shrink-0">
+            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+              runResult?.includes("completed") || runResult?.includes("success")
+                ? "bg-green-600/20 text-green-400"
+                : runResult?.includes("partial")
+                ? "bg-yellow-600/20 text-yellow-400"
+                : "bg-red-600/20 text-red-400"
+            }`}>
+              {runResult || "完成"}
+            </span>
+            <span className="text-gray-500 text-xs flex-1" />
+            <button
+              onClick={() => {
+                const allOutputs = nodes
+                  .map((n) => {
+                    const d = n.data as AgentNodeData;
+                    const r = runResults[n.id];
+                    if (!r?.output) return null;
+                    const def = getAgentDef(d.agent_type);
+                    return `# ${def?.name || d.agent_type}\n\n${r.output}\n\n---\n`;
+                  })
+                  .filter(Boolean)
+                  .join("\n");
+                if (allOutputs) {
+                  downloadOutput(
+                    `workflow_output_${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}`,
+                    allOutputs
+                  );
+                }
+              }}
+              className="flex items-center gap-1 text-[10px] bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition-colors"
+            >
+              <FileDown size={12} /> 下载全部输出
+            </button>
+            <button
+              onClick={() => {
+                setRunResults(null);
+                setRunResult(null);
+                setNodes((nds) =>
+                  nds.map((n) => ({ ...n, data: { ...(n.data as AgentNodeData), run_status: undefined } }))
+                );
+              }}
+              className="text-gray-500 hover:text-gray-300 text-xs"
+              title="关闭结果面板"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {/* 结果列表 */}
+          <div className="overflow-y-auto px-4 py-2">
+            {nodes.map((n) => {
+              const d = n.data as AgentNodeData;
+              const r = runResults[n.id];
+              if (!r) return null;
+              const def = getAgentDef(d.agent_type);
+              const statusColor =
+                r.status === "success"
+                  ? "text-green-400"
+                  : r.status === "failed" || r.status === "blocked"
+                  ? "text-red-400"
+                  : r.status === "timeout" || r.status === "skipped"
+                  ? "text-yellow-400"
+                  : "text-gray-400";
+              return (
+                <div key={n.id} className="text-xs py-2 border-b border-gray-800 last:border-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`font-medium ${statusColor}`}>{def?.name || d.agent_type}</span>
+                    <span className="text-gray-500">
+                      {r.status} · {r.duration_ms}ms{r.retries ? ` · 重试${r.retries}次` : ""}
+                    </span>
+                    {r.output && r.output.length > 20 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadOutput(
+                            `${def?.name || d.agent_type}_${new Date().toISOString().slice(0, 10)}`,
+                            r.output
+                          );
+                        }}
+                        className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-blue-400 transition-colors ml-auto"
+                      >
+                        <Download size={10} /> 导出
+                      </button>
                     )}
                   </div>
-                )}
-                {r.output && r.output.length > 20 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      downloadOutput(
-                        `${def?.name || d.agent_type}_${new Date().toISOString().slice(0, 10)}`,
-                        r.output
-                      );
-                    }}
-                    className="mt-1 flex items-center gap-1 text-[10px] text-gray-500 hover:text-blue-400 transition-colors"
-                  >
-                    <Download size={10} /> 导出文件
-                  </button>
-                )}
-              </div>
-            );
-          })}
+                  {r.error && <div className="text-red-400 mt-0.5">{r.error}</div>}
+                  {r.commands && (
+                    <details className="mt-1">
+                      <summary className="text-gray-500 cursor-pointer hover:text-gray-400">生成命令</summary>
+                      <pre className="text-gray-400 mt-0.5 bg-gray-950 px-2 py-1 rounded text-[10px] overflow-x-auto whitespace-pre-wrap">{r.commands}</pre>
+                    </details>
+                  )}
+                  {r.output && (
+                    <div className="relative">
+                      <pre
+                        className={`text-gray-400 mt-1 whitespace-pre-wrap cursor-pointer hover:text-gray-300 transition-colors bg-gray-950/50 px-2 py-1 rounded ${
+                          expandedOutputs.has(n.id) ? "" : "line-clamp-4"
+                        }`}
+                        onClick={() => setExpandedOutputs((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(n.id)) next.delete(n.id);
+                          else next.add(n.id);
+                          return next;
+                        })}
+                        title={expandedOutputs.has(n.id) ? "点击收起" : "点击展开全部"}
+                      >
+                        {r.output}
+                      </pre>
+                      {r.output.length > 300 && (
+                        <span className="text-[10px] text-gray-600 cursor-pointer hover:text-gray-400" onClick={() => setExpandedOutputs((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(n.id)) next.delete(n.id);
+                          else next.add(n.id);
+                          return next;
+                        })}>
+                          {expandedOutputs.has(n.id) ? <ChevronUp size={10} className="inline" /> : <ChevronDown size={10} className="inline" />}
+                          {" "}{expandedOutputs.has(n.id) ? "收起" : "展开全部"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

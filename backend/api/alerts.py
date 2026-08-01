@@ -238,7 +238,8 @@ async def remediate_alert_manual(
     )
 
     if result.get("status") == "success":
-        alert.status = "acknowledged"
+        alert.status = "resolved"
+        alert.resolved_at = datetime.now(tz=timezone.utc)
         await db.commit()
 
     return result
