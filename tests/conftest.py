@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from backend.database import Base, get_db
 from backend.main import app
+from backend.models import User
 
 TEST_DB = os.getenv("TEST_DATABASE_URL", f"sqlite+aiosqlite:///{tempfile.gettempdir()}/itops_test.db")
 
@@ -44,12 +45,18 @@ async def client(test_session):
 
 
 @pytest_asyncio.fixture
-async def auth_headers(client):
+async def auth_headers(client, test_session):
     await client.post("/api/auth/register", json={
         "username": "testadmin",
         "password": "admin123",
         "role": "admin",
     })
+    # 注册接口强制设为 viewer，测试需要 admin 权限，直接改数据库
+    from sqlalchemy import select, update
+    await test_session.execute(
+        update(User).where(User.username == "testadmin").values(role="admin")
+    )
+    await test_session.flush()
     login_resp = await client.post("/api/auth/login", json={
         "username": "testadmin",
         "password": "admin123",

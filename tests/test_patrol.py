@@ -62,7 +62,7 @@ async def test_alert_silence_rule_crud(client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_remediation_policies(client):
+async def test_remediation_policies(client, auth_headers):
     """修复策略CRUD"""
     # 创建
     create_resp = await client.post("/api/remediation/policies", json={
@@ -70,19 +70,19 @@ async def test_remediation_policies(client):
         "match_labels": {"severity": "critical"},
         "command": "systemctl restart nginx",
         "timeout_seconds": 30,
-    })
+    }, headers=auth_headers)
     assert create_resp.status_code == 201
 
     # 列表
-    list_resp = await client.get("/api/remediation/policies")
+    list_resp = await client.get("/api/remediation/policies", headers=auth_headers)
     assert list_resp.status_code == 200
     assert list_resp.json()["total"] >= 1
 
 
 @pytest.mark.asyncio
-async def test_remediation_logs(client):
+async def test_remediation_logs(client, auth_headers):
     """修复日志查询"""
-    resp = await client.get("/api/remediation/logs")
+    resp = await client.get("/api/remediation/logs", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert "total" in data
