@@ -16,7 +16,7 @@ const links = [
   { href: "/workflows", label: "工作流", icon: Workflow },
   { href: "/knowledge", label: "知识库", icon: BookOpen },
   { href: "/audit", label: "审计日志", icon: FileText, adminOnly: true },
-  { href: "/notifications", label: "通知管理", icon: BellRing, adminOnly: true },
+  { href: "/notifications", label: "通知管理", icon: BellRing },
   { href: "/remediation", label: "修复记录", icon: ShieldCheck },
 ];
 

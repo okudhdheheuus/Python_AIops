@@ -39,7 +39,7 @@ const CHANNEL_TYPE_LABEL: Record<string, string> = {
 };
 
 export default function NotificationsPage() {
-  const { token, user, authFetch } = useAuth();
+  const { token, authFetch } = useAuth();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +52,6 @@ export default function NotificationsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
-
-  const isAdmin = user?.role === "admin";
 
   const fetchChannels = useCallback(async () => {
     setLoading(true);
@@ -78,7 +76,6 @@ export default function NotificationsPage() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!isAdmin) return;
     setSubmitting(true);
     setFormError(null);
     const form = new FormData(e.currentTarget);
@@ -158,7 +155,6 @@ export default function NotificationsPage() {
   }
 
   async function openEdit(ch: Channel) {
-    if (!isAdmin) return;
     setFormError(null);
     setSubmitting(false);
     // 先用列表数据兜底，再尝试获取完整 webhook_url
@@ -185,7 +181,6 @@ export default function NotificationsPage() {
   }
 
   function openCreate() {
-    if (!isAdmin) return;
     setEditingId(null);
     setEditData(null);
     setFormError(null);
@@ -201,34 +196,17 @@ export default function NotificationsPage() {
       </div>
     );
 
-  if (user?.role !== "admin")
-    return (
-      <div className="p-8 text-center text-gray-500 mt-20">
-        <BellRing size={48} className="mx-auto mb-4 opacity-50" />
-        <p className="text-gray-400">通知管理仅限管理员配置</p>
-        <p className="text-xs text-gray-600 mt-2">演示环境不支持此功能</p>
-      </div>
-    );
-
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">通知管理</h1>
-        {isAdmin && (
-          <button
-            onClick={openCreate}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white flex items-center gap-2 text-sm"
-          >
-            <Plus size={16} /> 添加渠道
-          </button>
-        )}
+        <button
+          onClick={openCreate}
+          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white flex items-center gap-2 text-sm"
+        >
+          <Plus size={16} /> 添加渠道
+        </button>
       </div>
-
-      {!isAdmin && (
-        <div className="text-sm text-yellow-400 mb-4 bg-yellow-600/10 border border-yellow-600/30 rounded-lg p-3">
-          仅管理员可创建/修改/删除通知渠道
-        </div>
-      )}
 
       {loading ? (
         <div className="text-gray-400 p-8">加载中...</div>
@@ -271,36 +249,32 @@ export default function NotificationsPage() {
                 >
                   {ch.enabled ? "启用" : "禁用"}
                 </span>
-                {isAdmin && (
-                  <>
-                    <button
-                      onClick={() => handleTest(ch.id)}
-                      disabled={testingId === ch.id}
-                      className="p-1 text-gray-400 hover:text-green-400 transition disabled:opacity-50"
-                      title="测试发送"
-                    >
-                      {testingId === ch.id ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Play size={16} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => openEdit(ch)}
-                      className="p-1 text-gray-400 hover:text-yellow-400 transition"
-                      title="编辑"
-                    >
-                      <Edit3 size={16} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(ch.id)}
-                      className="p-1 text-gray-400 hover:text-red-400 transition"
-                      title="删除"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => handleTest(ch.id)}
+                  disabled={testingId === ch.id}
+                  className="p-1 text-gray-400 hover:text-green-400 transition disabled:opacity-50"
+                  title="测试发送"
+                >
+                  {testingId === ch.id ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Play size={16} />
+                  )}
+                </button>
+                <button
+                  onClick={() => openEdit(ch)}
+                  className="p-1 text-gray-400 hover:text-yellow-400 transition"
+                  title="编辑"
+                >
+                  <Edit3 size={16} />
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(ch.id)}
+                  className="p-1 text-gray-400 hover:text-red-400 transition"
+                  title="删除"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
             </div>
           ))}

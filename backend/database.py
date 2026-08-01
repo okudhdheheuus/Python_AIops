@@ -79,8 +79,8 @@ async def ensure_sqlite_columns():
             conn.commit()
         except Exception:
             pass
-        # 多租户隔离：servers / workflows 添加 owner_id
-        for table_name in ("servers", "workflows"):
+        # 多租户隔离：添加 owner_id 列
+        for table_name in ("servers", "workflows", "notification_channels"):
             cols = {c[1] for c in conn.execute(f"PRAGMA table_info({table_name})")}
             if "owner_id" not in cols:
                 conn.execute(f"ALTER TABLE {table_name} ADD COLUMN owner_id VARCHAR(36)")
@@ -113,6 +113,7 @@ async def migrate_missing_columns():
             for table, column, col_type in [
                 ("servers", "owner_id", "VARCHAR(36)"),
                 ("workflows", "owner_id", "VARCHAR(36)"),
+                ("notification_channels", "owner_id", "VARCHAR(36)"),
             ]:
                 try:
                     await session.execute(

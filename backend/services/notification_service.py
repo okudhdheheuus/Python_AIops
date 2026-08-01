@@ -24,13 +24,25 @@ MAX_RETRIES = 3
 ALLOWED_TYPES = {"wecom", "dingtalk", "feishu", "email"}
 
 
-async def send_notification(alert_name: str, summary: str, severity: str, instance: str):
-    """向所有启用的通知渠道发送告警消息"""
+async def _get_channels_for_owner(owner_id: str | None = None):
+    """获取某用户的通知渠道（包含 owner_id=NULL 的管理员渠道）"""
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(NotificationChannel).where(NotificationChannel.enabled == True)
-        )
-        channels = result.scalars().all()
+        stmt = select(NotificationChannel).where(NotificationChannel.enabled == True)
+        if owner_id:
+            stmt = stmt.where(
+                (NotificationChannel.owner_id == owner_id)
+                | (NotificationChannel.owner_id == None)
+            )
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
+
+async def send_notification(
+    alert_name: str, summary: str, severity: str, instance: str,
+    owner_id: str | None = None,
+):
+    """向相关用户的启用的通知渠道发送告警消息"""
+    channels = await _get_channels_for_owner(owner_id)
 
     if not channels:
         logger.debug("没有启用的通知渠道，跳过通知")
@@ -53,13 +65,12 @@ async def send_notification(alert_name: str, summary: str, severity: str, instan
                     logger.error(f"通知最终失败: channel={channel.name}")
 
 
-async def send_recovery_notification(alert_name: str, instance: str, resolved_at: str):
-    """向所有启用的通知渠道发送告警恢复消息"""
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(NotificationChannel).where(NotificationChannel.enabled == True)
-        )
-        channels = result.scalars().all()
+async def send_recovery_notification(
+    alert_name: str, instance: str, resolved_at: str,
+    owner_id: str | None = None,
+):
+    """向相关用户的启用的通知渠道发送告警恢复消息"""
+    channels = await _get_channels_for_owner(owner_id)
 
     if not channels:
         return

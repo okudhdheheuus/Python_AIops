@@ -199,6 +199,7 @@ class NotificationChannel(Base):
     webhook_url = Column(String(500), nullable=False)
     sign_secret = Column(String(200), nullable=True)  # 钉钉/飞书加签密钥
     enabled = Column(Boolean, default=True)
+    owner_id = Column(String(36), nullable=True)  # 多租户隔离，NULL=管理员
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

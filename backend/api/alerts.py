@@ -50,6 +50,7 @@ async def receive_alert(payload: WebhookPayload,db:AsyncSession = Depends(get_db
 
         # 没有对应记录，就先查找对应服务器
         server_id = None
+        owner_id = None
         if ":" in instance:
             ip,port_str = instance.split(":",1)
             try:
@@ -61,6 +62,7 @@ async def receive_alert(payload: WebhookPayload,db:AsyncSession = Depends(get_db
                 ).scalar_one_or_none()
                 if server_obj:
                     server_id = server_obj.id
+                    owner_id = server_obj.owner_id
             except ValueError:
                 pass
         alert = Alert(
@@ -70,7 +72,7 @@ async def receive_alert(payload: WebhookPayload,db:AsyncSession = Depends(get_db
         )
         db.add(alert)
         await db.flush()
-        results.append({"alert_id":alert.id,"server_id":server_id})
+        results.append({"alert_id":alert.id,"server_id":server_id,"owner_id":owner_id})
     await db.commit()
 
     # 异步发送通知 + 自动修复（仅对新建告警，忽略异常避免影响主流程）
@@ -82,6 +84,7 @@ async def receive_alert(payload: WebhookPayload,db:AsyncSession = Depends(get_db
                     summary=alert_data.annotations.get("summary", ""),
                     severity=alert_data.labels.get("severity", "warning"),
                     instance=alert_data.labels.get("instance", ""),
+                    owner_id=results[i].get("owner_id"),
                 )
             except Exception:
                 pass

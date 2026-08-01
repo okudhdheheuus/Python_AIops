@@ -19,6 +19,28 @@ CHANNEL_TYPE_LABELS = {
 }
 
 
+def _channels_ownership_filter(stmt, current_user: User):
+    """非 admin 用户只看自己的渠道"""
+    if current_user.role != "admin":
+        stmt = stmt.where(
+            (NotificationChannel.owner_id == current_user.id)
+            | (NotificationChannel.owner_id == None)
+        )
+    return stmt
+
+
+async def _require_channel_ownership(
+    channel_id: str, db: AsyncSession, current_user: User
+) -> NotificationChannel:
+    """获取渠道并校验所有权"""
+    channel = await db.get(NotificationChannel, channel_id)
+    if not channel:
+        raise HTTPException(status_code=404, detail="渠道不存在")
+    if current_user.role != "admin" and channel.owner_id not in (None, current_user.id):
+        raise HTTPException(status_code=404, detail="渠道不存在")
+    return channel
+
+
 def _mask_url(url: str) -> str:
     """脱敏 webhook URL，仅显示首尾各 12 字符"""
     if len(url) <= 28:
@@ -44,12 +66,12 @@ async def list_channels(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """列出通知渠道（仅管理员）"""
-    if current_user.role not in ["admin"]:
-        raise HTTPException(status_code=403, detail="仅管理员可操作")
-    result = await db.execute(
-        select(NotificationChannel).order_by(NotificationChannel.created_at.desc())
+    """列出通知渠道"""
+    stmt = _channels_ownership_filter(
+        select(NotificationChannel).order_by(NotificationChannel.created_at.desc()),
+        current_user,
     )
+    result = await db.execute(stmt)
     channels = result.scalars().all()
     return {
         "total": len(channels),
@@ -64,9 +86,6 @@ async def create_channel(
     current_user: User = Depends(get_current_active_user),
 ):
     """创建通知渠道"""
-    if current_user.role not in ["admin"]:
-        raise HTTPException(status_code=403, detail="仅管理员可操作")
-
     channel_type = body.get("channel_type", "")
     if channel_type not in ALLOWED_TYPES:
         raise HTTPException(
@@ -80,6 +99,7 @@ async def create_channel(
         webhook_url=body["webhook_url"],
         sign_secret=body.get("sign_secret"),
         enabled=body.get("enabled", True),
+        owner_id=current_user.id,
     )
     db.add(channel)
     await db.commit()
@@ -97,12 +117,8 @@ async def get_channel(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """获取单个渠道详情（仅管理员，含完整 webhook_url，供编辑使用）"""
-    if current_user.role not in ["admin"]:
-        raise HTTPException(status_code=403, detail="仅管理员可操作")
-    channel = await db.get(NotificationChannel, channel_id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="渠道不存在")
+    """获取单个渠道详情（含完整 webhook_url，供编辑使用）"""
+    channel = await _require_channel_ownership(channel_id, db, current_user)
     return {
         "id": channel.id,
         "name": channel.name,
@@ -122,12 +138,7 @@ async def delete_channel(
     current_user: User = Depends(get_current_active_user),
 ):
     """删除通知渠道"""
-    if current_user.role not in ["admin"]:
-        raise HTTPException(status_code=403, detail="仅管理员可操作")
-
-    channel = await db.get(NotificationChannel, channel_id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="渠道不存在")
+    channel = await _require_channel_ownership(channel_id, db, current_user)
     await db.delete(channel)
     await db.commit()
     return {"status": "deleted"}
@@ -141,12 +152,7 @@ async def update_channel(
     current_user: User = Depends(get_current_active_user),
 ):
     """更新通知渠道"""
-    if current_user.role not in ["admin"]:
-        raise HTTPException(status_code=403, detail="仅管理员可操作")
-
-    channel = await db.get(NotificationChannel, channel_id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="渠道不存在")
+    channel = await _require_channel_ownership(channel_id, db, current_user)
 
     if "channel_type" in body and body["channel_type"] not in ALLOWED_TYPES:
         raise HTTPException(
@@ -156,7 +162,6 @@ async def update_channel(
 
     for field in ("name", "channel_type", "webhook_url", "enabled", "sign_secret"):
         if field in body:
-            # sign_secret 为空字符串时清空
             if field == "sign_secret" and body[field] == "":
                 setattr(channel, field, None)
             else:
@@ -172,12 +177,7 @@ async def test_channel(
     current_user: User = Depends(get_current_active_user),
 ):
     """发送测试消息到指定渠道"""
-    if current_user.role not in ["admin"]:
-        raise HTTPException(status_code=403, detail="仅管理员可操作")
-
-    channel = await db.get(NotificationChannel, channel_id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="渠道不存在")
+    channel = await _require_channel_ownership(channel_id, db, current_user)
 
     test_content = (
         f"✅ **ITOps 测试消息**\n\n"
