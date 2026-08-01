@@ -46,7 +46,7 @@ async def get_llm_config(
     return UserLLMConfigOut(
         id="",
         user_id=current_user.id,
-        provider="deepseek",
+        provider="glm",
         api_key=None,
         api_base=None,
         model=None,
