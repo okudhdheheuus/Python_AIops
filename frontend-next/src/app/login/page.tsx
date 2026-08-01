@@ -56,7 +56,7 @@ export default function LoginPage() {
           username: regUsername,
           password: regPassword,
           email: regEmail || undefined,
-          role: "admin",
+          role: "viewer",
         }),
       });
       if (!resp.ok) {
@@ -187,6 +187,15 @@ export default function LoginPage() {
             </button>
           </form>
         )}
+
+        <div className="mt-4 p-3 bg-blue-600/10 border border-blue-500/30 rounded-lg text-xs text-gray-400 leading-relaxed">
+          <p className="text-blue-300 font-medium mb-1">开源演示环境</p>
+          <p>本演示站为共享环境，服务器信息仅管理员可见。</p>
+          <p>如需完整功能，请
+            <a href="https://github.com/okudhdheheuus/Python_AIops" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 mx-0.5 underline">前往 GitHub</a>
+            自行部署（Docker Compose 一键启动）。
+          </p>
+        </div>
 
         <p className="text-xs text-gray-500 mt-4 text-center">
           ITOps 智能运维自动化平台

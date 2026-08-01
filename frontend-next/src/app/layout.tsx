@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import DemoBanner from "@/components/DemoBanner";
 import { AuthProvider } from "@/lib/auth";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -17,7 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} bg-gray-900 text-white flex h-screen`}>
         <AuthProvider>
           <Sidebar />
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main className="flex-1 overflow-auto flex flex-col">
+            <DemoBanner />
+            <div className="flex-1 overflow-auto">{children}</div>
+          </main>
         </AuthProvider>
       </body>
     </html>

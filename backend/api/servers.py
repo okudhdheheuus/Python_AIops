@@ -38,6 +38,17 @@ async def create_server(
     )
     return ServerOut.model_validate(new_server)
 
+def _mask_server_for_viewer(server: Server, is_admin: bool) -> ServerOut:
+    """非 admin 用户隐藏 SSH 凭据，仅返回服务器名称和状态"""
+    out = ServerOut.model_validate(server)
+    if not is_admin:
+        out.host = "***"
+        out.port = 0
+        out.username = "***"
+        out.password = None
+        out.private_key = None
+    return out
+
 # 获取所有服务器
 @router.get("/servers",response_model=list[ServerOut])
 async def list_servers(
@@ -53,7 +64,8 @@ async def list_servers(
     stmt = stmt.offset(skip).limit(limit)
     result = await df.execute(stmt)
     servers = result.scalars().all()
-    return [ServerOut.model_validate(server) for server in servers]
+    is_admin = current_user.role == "admin"
+    return [_mask_server_for_viewer(s, is_admin) for s in servers]
 
 # 导出服务器为CSV —— 必须在 /{server_id} 之前注册，避免路由冲突
 @router.api_route("/servers/export-csv", methods=["GET", "POST"])
@@ -62,6 +74,8 @@ async def export_servers_csv(
     current_user: User = Depends(get_current_active_user)
 ):
     """导出服务器列表为CSV"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="仅管理员可导出服务器")
     async def generate_csv():
         yield "name,host,port,username,tags,enabled,description\n"
         stream = await db.stream(select(Server).order_by(Server.name))
@@ -102,7 +116,8 @@ async def get_server(
             status_code = 404,
             detail="Server not found"
         )
-    return ServerOut.model_validate(server)
+    is_admin = current_user.role == "admin"
+    return _mask_server_for_viewer(server, is_admin)
 
 # 更新服务器
 @router.put("/servers/{server_id}",response_model=ServerOut)

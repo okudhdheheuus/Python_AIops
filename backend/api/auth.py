@@ -27,11 +27,12 @@ async def register(user_data: UserCreate,db: AsyncSession = Depends(get_db)):
     existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400,detail="Username already exists")
+    # 新注册用户强制为 viewer，防止通过 API 提权注册 admin 账号
     new_user = User(
         username = user_data.username,
         email = user_data.email,
         hashed_password= hash_password(user_data.password),
-        role = user_data.role
+        role = "viewer"
     )
     db.add(new_user)
     await db.commit()

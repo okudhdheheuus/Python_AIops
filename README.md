@@ -1,7 +1,7 @@
 # ITOps Platform — AI 驱动的智能运维自动化平台
 
 <p align="center">
-  <strong>🚀 在线演示：<a href="http://8.137.178.63">http://8.137.178.63</a></strong>
+  <strong>🚀 在线演示：<a href="http://8.137.178.63">http://8.137.178.63</a>（共享环境，推荐自部署）</strong>
   &nbsp;|&nbsp;
   <strong>📖 <a href="#快速开始">快速开始</a></strong>
   &nbsp;|&nbsp;
