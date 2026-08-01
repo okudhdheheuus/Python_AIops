@@ -17,8 +17,16 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # 复制应用代码
 COPY backend/ ./backend/
 
-# 非root用户运行（安全加固）
+# 创建用户
 RUN useradd -m -u 1000 itops && chown -R itops:itops /app
+
+# 预下载 embedding 模型到镜像（绕过 HuggingFace 被墙 + 避免运行时权限问题）
+ENV HF_ENDPOINT=https://hf-mirror.com
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" && \
+    mkdir -p /app/.cache && \
+    cp -r /root/.cache/huggingface /app/.cache/huggingface && \
+    chown -R itops:itops /app/.cache
+
 USER itops
 
 EXPOSE 8000
