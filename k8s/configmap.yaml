@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: itops
+data:
+  ENVIRONMENT: "production"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "INFO"
+  CORS_ORIGINS: "http://localhost:30080"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  LLM_PROVIDER: "glm"
+  OPENAI_API_BASE: "https://open.bigmodel.cn/api/paas/v4"
+  OPENAI_MODEL: "glm-4-flash"

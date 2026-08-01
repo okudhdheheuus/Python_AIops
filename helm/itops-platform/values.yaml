@@ -94,14 +94,12 @@ ingress:
   className: nginx
   host: itops.local
 
-# ===== Secrets（不要在这里存真实密码，通过 --set 或 sealed-secrets 管理）=====
+# ===== Secrets（⚠️ 生产环境通过 --set 或 sealed-secrets 管理，不要提交真实密钥）=====
 secrets:
-  secretKey: "change-me-in-production"
-  llmProvider: "openai"
+  secretKey: "change-me-in-production-use-openssl-rand-hex-32"
+  glmApiKey: ""
   deepseekApiKey: ""
-  openaiApiKey: "XXX"
-  openaiApiBase: "https://open.bigmodel.cn/api/paas/v4"
-  openaiModel: "glm-4.7-flash"
+  openaiApiKey: ""
 
 
 

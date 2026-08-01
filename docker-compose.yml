@@ -29,7 +29,7 @@ services:
       - "8000:8000"
     environment:
       ENVIRONMENT: production
-      SECRET_KEY: 6bcfb09fea48f03b623124e896b788c2cdd084ff3e8979b4c68683ee52d7dff6
+      SECRET_KEY: change-me-in-production-use-a-real-secret
       DATABASE_URL: postgresql+asyncpg://itops:itops123@postgres:5432/itops
       REDIS_HOST: redis
       REDIS_PORT: "6379"

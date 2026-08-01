@@ -43,5 +43,10 @@ spec:
             command: ["redis-cli","ping"]
           initialDelaySeconds: 30
           periodSeconds: 10
-
-
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi

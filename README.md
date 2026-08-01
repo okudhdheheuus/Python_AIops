@@ -357,13 +357,15 @@ Python_AIops/
 │           └── api.ts             #   API 调用封装
 ├── nginx/                         # Nginx 反向代理配置
 ├── k8s/                           # Kubernetes 部署清单
+│   ├── kustomization.yaml         #   kubectl apply -k 一键部署
 │   ├── namespace.yaml
-│   ├── configmap.yaml
-│   ├── secret.yaml
-│   ├── postgres-deployment.yaml
-│   ├── redis-deployment.yaml
-│   ├── backend-deployment.yaml
-│   └── frontend-deployment.yaml
+│   ├── configmap.yaml             #   非敏感配置
+│   ├── secret.yaml                #   密钥（⚠️ 生产环境务必修改）
+│   ├── postgres-deployment.yaml   #   PostgreSQL StatefulSet
+│   ├── redis-deployment.yaml      #   Redis Deployment
+│   ├── backend-deployment.yaml    #   Backend Deployment + Service
+│   ├── frontend-deployment.yaml   #   Frontend Deployment + Service
+│   └── ingress.yaml               #   Nginx Ingress 路由
 ├── helm/                          # Helm Chart
 │   └── itops-platform/
 ├── scripts/                       # 部署脚本
@@ -400,14 +402,24 @@ docker compose logs -f backend frontend
 ### Kubernetes 部署
 
 ```bash
-# 使用 kubectl 直接部署
+# 一键部署全部资源（kustomize）
+kubectl apply -k k8s/
+
+# 或逐个部署
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/configmap.yaml
 kubectl apply -f k8s/secret.yaml
-kubectl apply -f k8s/
+kubectl apply -f k8s/postgres-deployment.yaml
+kubectl apply -f k8s/redis-deployment.yaml
+kubectl apply -f k8s/backend-deployment.yaml
+kubectl apply -f k8s/frontend-deployment.yaml
+kubectl apply -f k8s/ingress.yaml
 
 # 查看 Pod 状态
 kubectl get pods -n itops
+
+# 查看服务
+kubectl get svc -n itops
 ```
 
 ### Helm 部署

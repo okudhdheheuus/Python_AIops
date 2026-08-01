@@ -10,6 +10,9 @@ data:
   CORS_ORIGINS: "http://{{ .Values.ingress.host }}"
   REDIS_HOST: {{ include "itops.fullname" . }}-redis
   REDIS_PORT: "6379"
+  LLM_PROVIDER: "glm"
+  OPENAI_API_BASE: "https://open.bigmodel.cn/api/paas/v4"
+  OPENAI_MODEL: "glm-4-flash"
 ---
 apiVersion: v1
 kind: Secret
@@ -18,11 +21,9 @@ metadata:
 type: Opaque
 stringData:
   SECRET_KEY: {{ .Values.secrets.secretKey | quote }}
-  LLM_PROVIDER: {{ .Values.secrets.llmProvider | quote }}
+  GLM_API_KEY: {{ .Values.secrets.glmApiKey | quote }}
   DEEPSEEK_API_KEY: {{ .Values.secrets.deepseekApiKey | quote }}
   OPENAI_API_KEY: {{ .Values.secrets.openaiApiKey | quote }}
-  OPENAI_API_BASE: {{ .Values.secrets.openaiApiBase | quote }}
-  OPENAI_MODEL: {{ .Values.secrets.openaiModel | quote }}
 ---
 apiVersion: v1
 kind: Service
