@@ -12,8 +12,7 @@ _providers: dict[str, BaseLLMProvider] = {}
 def get_llm_provider(user_config: Any = None) -> BaseLLMProvider:
     """获取LLM Provider实例。
 
-    user_config 有 api_key 时创建独立 provider（按用户计费），
-    否则回退到全局单例（共享 key）。
+    每个用户必须配置自己的 API Key，不再使用全局共享 Key。
     """
     if user_config and user_config.api_key:
         provider_name = getattr(user_config, "provider", None) or settings.llm_provider
@@ -38,15 +37,7 @@ def get_llm_provider(user_config: Any = None) -> BaseLLMProvider:
         else:
             raise ValueError(f"不支持的LLM Provider: {provider_name}")
 
-    # 全局单例（缓存）
-    provider_name = settings.llm_provider
-    if provider_name not in _providers:
-        if provider_name == "deepseek":
-            _providers[provider_name] = DeepSeekProvider()
-        elif provider_name == "openai":
-            _providers[provider_name] = OpenAIProvider(api_key=settings.openai_api_key)
-        elif provider_name == "glm":
-            _providers[provider_name] = GLMProvider(api_key=settings.glm_api_key)
-        else:
-            raise ValueError(f"不支持的LLM Provider: {provider_name}")
-    return _providers[provider_name]
+    raise ValueError(
+        "请先在 API 设置页面配置您的 LLM API Key。"
+        "可以前往 https://open.bigmodel.cn/ 免费申请 GLM-4-Flash API Key。"
+    )
