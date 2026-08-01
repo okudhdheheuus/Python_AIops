@@ -25,16 +25,40 @@ const AuthContext = createContext<AuthContextType>({
   authFetch: async () => { throw new Error("not initialized"); },
 });
 
+function decodeJwtRole(token: string): string {
+  try {
+    const segment = token.split(".")[1];
+    if (!segment) return "viewer";
+    const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const payload = JSON.parse(json);
+    return payload.role || "viewer";
+  } catch {
+    return "viewer";
+  }
+}
+
 function loadFromStorage() {
   if (typeof window === "undefined") return { token: null, user: null };
   const savedToken = localStorage.getItem("token");
-  const savedUser = localStorage.getItem("user");
-  if (!savedToken || !savedUser) return { token: null, user: null };
-  try {
-    return { token: savedToken, user: JSON.parse(savedUser) as User };
-  } catch {
-    return { token: null, user: null };
+  if (!savedToken) return { token: null, user: null };
+  const savedUserRaw = localStorage.getItem("user");
+  let user: User | null = null;
+  if (savedUserRaw) {
+    try {
+      const savedUser = JSON.parse(savedUserRaw) as User;
+      // 角色从 token 重新推导，避免旧的 localStorage 里误存为 admin
+      user = { username: savedUser.username, role: decodeJwtRole(savedToken) };
+    } catch {
+      user = null;
+    }
   }
+  return { token: savedToken, user };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -49,6 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (savedToken) {
       setToken(savedToken);
       setUser(savedUser);
+      // 修正本地旧缓存（角色曾被硬编码为 admin），写回正确角色
+      if (savedUser) {
+        const raw = localStorage.getItem("user");
+        const healed = JSON.stringify(savedUser);
+        if (raw !== healed) localStorage.setItem("user", healed);
+      }
     }
     const handleStorage = (event: StorageEvent) => {
       if (event.key === "token" || event.key === "user") {
@@ -74,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const data = await resp.json();
       const jwt = data.access_token;
-      const userInfo = { username, role: "admin" };
+      const userInfo = { username, role: decodeJwtRole(jwt) };
       setToken(jwt);
       setUser(userInfo);
       localStorage.setItem("token", jwt);
