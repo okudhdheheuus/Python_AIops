@@ -20,8 +20,7 @@ COPY backend/ ./backend/
 # 创建用户
 RUN useradd -m -u 1000 itops && chown -R itops:itops /app
 
-# 预下载 embedding 模型到镜像（绕过 HuggingFace 被墙 + 避免运行时权限问题）
-ENV HF_ENDPOINT=https://hf-mirror.com
+# 预下载 embedding 模型到镜像（构建时走 HF 官方，CI 在境外可直连）
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" && \
     mkdir -p /app/.cache && \
     cp -r /root/.cache/huggingface /app/.cache/huggingface && \
