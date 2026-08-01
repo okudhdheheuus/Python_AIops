@@ -37,7 +37,7 @@ async def test_empty_webhook(client):
 
 
 @pytest.mark.asyncio
-async def test_list_alerts(client):
+async def test_list_alerts(client, auth_headers):
     """告警列表"""
     for i in range(3):
         await client.post("/api/alerts/webhook", json={
@@ -52,7 +52,7 @@ async def test_list_alerts(client):
             }]
         })
 
-    resp = await client.get("/api/alerts")
+    resp = await client.get("/api/alerts", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] >= 3
@@ -62,7 +62,7 @@ async def test_list_alerts(client):
 
 
 @pytest.mark.asyncio
-async def test_alert_stats(client):
+async def test_alert_stats(client, auth_headers):
     """告警统计"""
     for i in range(2):
         await client.post("/api/alerts/webhook", json={
@@ -77,7 +77,7 @@ async def test_alert_stats(client):
             }]
         })
 
-    resp = await client.get("/api/alerts/stats")
+    resp = await client.get("/api/alerts/stats", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] >= 2

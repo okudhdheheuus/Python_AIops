@@ -28,7 +28,7 @@ async def test_register(client):
     assert resp.status_code == 200
     user = resp.json()
     assert user["username"] == "testuser"
-    assert user["role"] == "admin"
+    assert user["role"] == "viewer"  # 注册强制为 viewer，防止提权
     assert "id" in user
 
 

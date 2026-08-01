@@ -81,21 +81,35 @@ async def test_delete_server(client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_create_server_forbidden(client):
-    """非admin创建服务器应返回403"""
+async def test_viewer_server_isolation(client, auth_headers):
+    """viewer 用户只能看到自己的服务器"""
+    # 用 admin 创建一台服务器
+    await client.post("/api/servers", json={
+        "name": "admin-srv", "host": "10.0.0.1", "port": 22, "username": "root"
+    }, headers=auth_headers)
+
+    # viewer 注册并创建自己的服务器
     await client.post("/api/auth/register", json={
-        "username": "viewer", "password": "pass123", "role": "viewer"
+        "username": "viewer2", "password": "pass123", "role": "viewer"
     })
     login_resp = await client.post("/api/auth/login", json={
-        "username": "viewer", "password": "pass123"
+        "username": "viewer2", "password": "pass123"
     })
     token = login_resp.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    viewer_headers = {"Authorization": f"Bearer {token}"}
 
+    # viewer 可以创建自己的服务器
     resp = await client.post("/api/servers", json={
-        "name": "srv", "host": "10.0.0.1", "port": 22, "username": "root"
-    }, headers=headers)
-    assert resp.status_code == 403
+        "name": "viewer-srv", "host": "10.0.0.2", "port": 22, "username": "root"
+    }, headers=viewer_headers)
+    assert resp.status_code == 201
+
+    # viewer 只能看到自己的服务器，看不到 admin 的
+    list_resp = await client.get("/api/servers", headers=viewer_headers)
+    assert list_resp.status_code == 200
+    servers = list_resp.json()
+    assert len(servers) == 1
+    assert servers[0]["name"] == "viewer-srv"
 
 
 @pytest.mark.asyncio
