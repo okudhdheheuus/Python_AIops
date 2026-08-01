@@ -109,7 +109,7 @@ async def test_alert_dedup(client):
 
 
 @pytest.mark.asyncio
-async def test_alert_lifecycle(client):
+async def test_alert_lifecycle(client, auth_headers):
     """告警状态流转: firing -> acknowledged -> resolved"""
     webhook_resp = await client.post("/api/alerts/webhook", json={
         "alerts": [{
@@ -121,16 +121,16 @@ async def test_alert_lifecycle(client):
     alert_id = webhook_resp.json()["results"][0]["alert_id"]
 
     # acknowledged
-    ack_resp = await client.put(f"/api/alerts/{alert_id}", json={"status": "acknowledged"})
+    ack_resp = await client.put(f"/api/alerts/{alert_id}", json={"status": "acknowledged"}, headers=auth_headers)
     assert ack_resp.status_code == 200
 
     # resolved
-    res_resp = await client.put(f"/api/alerts/{alert_id}", json={"status": "resolved"})
+    res_resp = await client.put(f"/api/alerts/{alert_id}", json={"status": "resolved"}, headers=auth_headers)
     assert res_resp.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_alert_not_found(client):
+async def test_alert_not_found(client, auth_headers):
     """更新不存在的告警"""
-    resp = await client.put("/api/alerts/nonexistent-id", json={"status": "acknowledged"})
+    resp = await client.put("/api/alerts/nonexistent-id", json={"status": "acknowledged"}, headers=auth_headers)
     assert resp.status_code == 404

@@ -158,11 +158,23 @@ async def alert_stats(db:AsyncSession = Depends(get_db), current_user: User = De
     return {"total" : total or 0,"critical_firing":critical or 0,"warning_firing": warning or 0}
 
 @router.put("/alerts/{alert_id}")
-async def update_alert(alert_id:str,body:AlertUpdate,db:AsyncSession = Depends(get_db)):
+async def update_alert(
+    alert_id: str,
+    body: AlertUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     """确认/解决告警"""
     alert = (await db.execute(select(Alert).where(Alert.id == alert_id))).scalar_one_or_none()
     if not alert:
-        raise HTTPException(status_code=404,detail="告警不存在")
+        raise HTTPException(status_code=404, detail="告警不存在")
+    # 非 admin 用户只能操作自己服务器的告警
+    if current_user.role != "admin" and alert.server_id:
+        owner_check = await db.execute(
+            select(Server).where(Server.id == alert.server_id, Server.owner_id == current_user.id)
+        )
+        if not owner_check.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="告警不存在")
     alert.status = body.status
     if body.status == "resolved":
         alert.resolved_at = datetime.now(tz=timezone.utc)
@@ -204,10 +216,11 @@ async def list_silence_rules(
     db:AsyncSession=Depends(get_db),
     current_user:User=Depends(get_current_active_user),
 ):
-    """获取静默规则"""
-    result = await db.execute(
-        select(SilenceRule).order_by(SilenceRule.created_at.desc())
-    )
+    """获取静默规则（非 admin 只看自己创建的）"""
+    stmt = select(SilenceRule).order_by(SilenceRule.created_at.desc())
+    if current_user.role != "admin":
+        stmt = stmt.where(SilenceRule.created_by == current_user.username)
+    result = await db.execute(stmt)
     rules = result.scalars().all()
     return {
         "total":len(rules),
@@ -231,9 +244,11 @@ async def delete_silence_rule(
     current_user: User = Depends(get_current_active_user)
 ):
     """删除静默规则"""
-    rule = await db.get(SilenceRule,rule_id)
+    rule = await db.get(SilenceRule, rule_id)
     if not rule:
-        raise HTTPException(status_code=404,detail="规则不存在")
+        raise HTTPException(status_code=404, detail="规则不存在")
+    if current_user.role != "admin" and rule.created_by != current_user.username:
+        raise HTTPException(status_code=404, detail="规则不存在")
     await db.delete(rule)
     await db.commit()
     return {"status":"deleted"}

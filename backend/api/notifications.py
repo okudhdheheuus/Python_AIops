@@ -44,7 +44,9 @@ async def list_channels(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """列出通知渠道"""
+    """列出通知渠道（仅管理员）"""
+    if current_user.role not in ["admin"]:
+        raise HTTPException(status_code=403, detail="仅管理员可操作")
     result = await db.execute(
         select(NotificationChannel).order_by(NotificationChannel.created_at.desc())
     )
@@ -95,7 +97,9 @@ async def get_channel(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """获取单个渠道详情（含完整 webhook_url，供编辑使用）"""
+    """获取单个渠道详情（仅管理员，含完整 webhook_url，供编辑使用）"""
+    if current_user.role not in ["admin"]:
+        raise HTTPException(status_code=403, detail="仅管理员可操作")
     channel = await db.get(NotificationChannel, channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="渠道不存在")

@@ -19,7 +19,11 @@ async def list_audit_logs(
     page_size: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_active_user),
 ):
-    """查询审计日志，支持按用户/操作/资源类型筛选"""
+    """查询审计日志（仅管理员可查看）"""
+    if current_user.role != "admin":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="仅管理员可查看审计日志")
+
     stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
     if username:
         stmt = stmt.where(AuditLog.username == username)
