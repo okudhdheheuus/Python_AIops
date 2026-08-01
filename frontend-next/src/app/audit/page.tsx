@@ -16,7 +16,7 @@ interface AuditLog {
 }
 
 export default function AuditPage() {
-  const { token, user, authFetch } = useAuth();
+  const { token, authFetch } = useAuth();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,15 +75,6 @@ export default function AuditPage() {
       <div className="p-8 text-center text-gray-500 mt-20">
         <FileText size={48} className="mx-auto mb-4 opacity-50" />
         <p>请先登录</p>
-      </div>
-    );
-
-  if (user?.role !== "admin")
-    return (
-      <div className="p-8 text-center text-gray-500 mt-20">
-        <FileText size={48} className="mx-auto mb-4 opacity-50" />
-        <p className="text-gray-400">审计日志仅限管理员查看</p>
-        <p className="text-xs text-gray-600 mt-2">演示环境不支持此功能</p>
       </div>
     );
 

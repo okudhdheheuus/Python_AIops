@@ -3,10 +3,21 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import AuditLog, User
+from ..models import AuditLog, Server, User
 from ..utils.security import get_current_active_user
 
 router = APIRouter()
+
+
+def _audit_ownership_filter(stmt, current_user: User):
+    """非 admin 用户只看自己服务器的审计日志"""
+    if current_user.role != "admin":
+        user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
+        stmt = stmt.where(
+            AuditLog.resource_type == "server",
+            AuditLog.resource_id.in_(user_server_ids),
+        )
+    return stmt
 
 
 @router.get("/logs")
@@ -19,12 +30,9 @@ async def list_audit_logs(
     page_size: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_active_user),
 ):
-    """查询审计日志（仅管理员可查看）"""
-    if current_user.role != "admin":
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="仅管理员可查看审计日志")
-
+    """查询审计日志（非管理员只看自己服务器的日志）"""
     stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
+    stmt = _audit_ownership_filter(stmt, current_user)
     if username:
         stmt = stmt.where(AuditLog.username == username)
     if action:
