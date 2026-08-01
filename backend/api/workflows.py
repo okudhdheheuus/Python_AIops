@@ -14,6 +14,14 @@ from ..utils.security import get_current_active_user
 router = APIRouter()
 
 
+def _workflow_ownership_filter(stmt, current_user: User):
+    """非 admin 用户看模板 + 自己的工作流"""
+    if current_user.role != "admin":
+        stmt = stmt.where(
+            (Workflow.is_template == True) | (Workflow.owner_id == current_user.id)
+        )
+    return stmt
+
 # ===== 工作流CRUD =====
 @router.get("")
 async def list_workflows(
@@ -25,6 +33,7 @@ async def list_workflows(
 ):
     """列出工作流"""
     stmt = select(Workflow).order_by(Workflow.created_at.desc())
+    stmt = _workflow_ownership_filter(stmt, current_user)
     if is_template is not None:
         stmt = stmt.where(Workflow.is_template == is_template)
 
@@ -44,6 +53,7 @@ async def list_workflows(
                 "nodes": json.loads(wf.nodes) if wf.nodes else [],
                 "edges": json.loads(wf.edges) if wf.edges else [],
                 "is_template": wf.is_template,
+                "owner_id": wf.owner_id,
                 "created_at": str(wf.created_at) if wf.created_at else None,
                 "updated_at": str(wf.updated_at) if wf.updated_at else None,
             }
@@ -59,12 +69,14 @@ async def create_workflow(
     current_user: User = Depends(get_current_active_user),
 ):
     """创建工作流"""
+    is_template = body.get("is_template", False)
     wf = Workflow(
         name=body["name"],
         description=body.get("description"),
         nodes=json.dumps(body.get("nodes", []), ensure_ascii=False),
         edges=json.dumps(body.get("edges", []), ensure_ascii=False),
-        is_template=body.get("is_template", False),
+        is_template=is_template,
+        owner_id=None if is_template else current_user.id,
     )
     db.add(wf)
     await db.commit()
@@ -79,9 +91,7 @@ async def get_workflow(
     current_user: User = Depends(get_current_active_user),
 ):
     """获取工作流详情"""
-    wf = await db.get(Workflow, workflow_id)
-    if not wf:
-        raise HTTPException(status_code=404, detail="工作流不存在")
+    wf = await _check_workflow_access(workflow_id, db, current_user)
     return {
         "id": wf.id,
         "name": wf.name,
@@ -89,6 +99,7 @@ async def get_workflow(
         "nodes": json.loads(wf.nodes) if wf.nodes else [],
         "edges": json.loads(wf.edges) if wf.edges else [],
         "is_template": wf.is_template,
+        "owner_id": wf.owner_id,
         "created_at": str(wf.created_at) if wf.created_at else None,
     }
 
@@ -101,9 +112,7 @@ async def update_workflow(
     current_user: User = Depends(get_current_active_user),
 ):
     """更新工作流"""
-    wf = await db.get(Workflow, workflow_id)
-    if not wf:
-        raise HTTPException(status_code=404, detail="工作流不存在")
+    wf = await _check_workflow_access(workflow_id, db, current_user)
 
     for field in ("name", "description", "is_template"):
         if field in body:
@@ -124,12 +133,24 @@ async def delete_workflow(
     current_user: User = Depends(get_current_active_user),
 ):
     """删除工作流"""
-    wf = await db.get(Workflow, workflow_id)
-    if not wf:
-        raise HTTPException(status_code=404, detail="工作流不存在")
+    wf = await _check_workflow_access(workflow_id, db, current_user)
     await db.delete(wf)
     await db.commit()
     return {"status": "deleted"}
+
+
+async def _check_workflow_access(workflow_id: str, db: AsyncSession, current_user: User) -> Workflow:
+    """获取工作流并校验访问权限"""
+    wf = await db.get(Workflow, workflow_id)
+    if not wf:
+        raise HTTPException(status_code=404, detail="工作流不存在")
+    if wf.is_template:
+        return wf  # 模板所有人可见
+    if current_user.role == "admin":
+        return wf  # admin 可见全部
+    if wf.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="工作流不存在")
+    return wf
 
 
 # ===== 工作流执行 =====
@@ -141,9 +162,7 @@ async def run_workflow(
     current_user: User = Depends(get_current_active_user),
 ):
     """执行工作流"""
-    wf = await db.get(Workflow, workflow_id)
-    if not wf:
-        raise HTTPException(status_code=404, detail="工作流不存在")
+    wf = await _check_workflow_access(workflow_id, db, current_user)
 
     # 加载当前用户的 LLM 配置，节点执行走用户的 Key（未配置则回退全局）
     user_llm_config = None

@@ -15,6 +15,21 @@ from ..utils.security import get_current_active_user
 
 router = APIRouter()
 
+def _server_ownership_filter(stmt, current_user: User):
+    """非 admin 用户只能看到自己的服务器"""
+    if current_user.role != "admin":
+        stmt = stmt.where(Server.owner_id == current_user.id)
+    return stmt
+
+async def _require_server_ownership(server_id: str, db: AsyncSession, current_user: User) -> Server:
+    """获取服务器并校验所有权（非 admin 只能操作自己的）"""
+    server = await db.get(Server, server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+    if current_user.role != "admin" and server.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Server not found")
+    return server
+
 # 创建服务器
 @router.post("/servers",response_model=ServerOut,status_code=201)
 async def create_server(
@@ -22,11 +37,7 @@ async def create_server(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # 仅admin和operator 可创建
-    if current_user.role not in ["admin", "operator"]:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-
-    new_server = Server(**server_in.model_dump())
+    new_server = Server(**server_in.model_dump(), owner_id=current_user.id)
     db.add(new_server)
     await db.commit()
     await db.refresh(new_server)
@@ -38,17 +49,6 @@ async def create_server(
     )
     return ServerOut.model_validate(new_server)
 
-def _mask_server_for_viewer(server: Server, is_admin: bool) -> ServerOut:
-    """非 admin 用户隐藏 SSH 凭据，仅返回服务器名称和状态"""
-    out = ServerOut.model_validate(server)
-    if not is_admin:
-        out.host = "***"
-        out.port = 0
-        out.username = "***"
-        out.password = None
-        out.private_key = None
-    return out
-
 # 获取所有服务器
 @router.get("/servers",response_model=list[ServerOut])
 async def list_servers(
@@ -59,13 +59,13 @@ async def list_servers(
     current_user: User = Depends(get_current_active_user)
 ):
     stmt = select(Server).order_by(Server.name)
+    stmt = _server_ownership_filter(stmt, current_user)
     if tag:
         stmt = stmt.where(Server.tags.contains(tag))
     stmt = stmt.offset(skip).limit(limit)
     result = await df.execute(stmt)
     servers = result.scalars().all()
-    is_admin = current_user.role == "admin"
-    return [_mask_server_for_viewer(s, is_admin) for s in servers]
+    return [ServerOut.model_validate(s) for s in servers]
 
 # 导出服务器为CSV —— 必须在 /{server_id} 之前注册，避免路由冲突
 @router.api_route("/servers/export-csv", methods=["GET", "POST"])
@@ -74,11 +74,10 @@ async def export_servers_csv(
     current_user: User = Depends(get_current_active_user)
 ):
     """导出服务器列表为CSV"""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="仅管理员可导出服务器")
     async def generate_csv():
         yield "name,host,port,username,tags,enabled,description\n"
-        stream = await db.stream(select(Server).order_by(Server.name))
+        stmt = _server_ownership_filter(select(Server).order_by(Server.name), current_user)
+        stream = await db.stream(stmt)
         try:
             async for server in stream.scalars():
                 row = [
@@ -110,36 +109,18 @@ async def get_server(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    server = await db.get(Server,server_id)
-    if not server:
-        raise HTTPException(
-            status_code = 404,
-            detail="Server not found"
-        )
-    is_admin = current_user.role == "admin"
-    return _mask_server_for_viewer(server, is_admin)
+    server = await _require_server_ownership(server_id, db, current_user)
+    return ServerOut.model_validate(server)
 
 # 更新服务器
 @router.put("/servers/{server_id}",response_model=ServerOut)
 async def update_server(
     server_id: str,
-    # server_in参数，类型为ServerUpdate，表示服务器更新信息
     server_in: ServerUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if current_user.role not in ["admin","operator"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Not enough permission"
-        )
-    server = await db.get(Server,server_id)
-    if not server:
-        raise HTTPException(
-            status_code=404,
-            detail="Server not found"
-        )
-    # 遍历server_in对象中已设置的属性，排除未设置的属性
+    server = await _require_server_ownership(server_id, db, current_user)
     for field,value in server_in.model_dump(exclude_unset=True).items():
         setattr(server,field,value)
     await db.commit()
@@ -159,17 +140,7 @@ async def delete_server(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if current_user.role not in ["admin","operator"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Not enough permission"
-        )
-    server = await db.get(Server,server_id)
-    if not server:
-        raise HTTPException(
-            status_code=404,
-            detail="Server not found"
-        )
+    server = await _require_server_ownership(server_id, db, current_user)
     await db.delete(server)
     await db.commit()
     await log_audit(
@@ -187,9 +158,7 @@ async def test_server_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    server = await db.get(Server, server_id)
-    if not server:
-        raise HTTPException(status_code=404,detail="Server not found")
+    server = await _require_server_ownership(server_id, db, current_user)
     result = await SSHService.test_connection(server)
     return result
 
@@ -237,6 +206,7 @@ async def import_servers_csv(
                 password=row.get("password") or None,
                 description=row.get("description") or None,
                 tags=row.get("tags") or None,
+                owner_id=current_user.id,
             )
             db.add(server)
             imported += 1

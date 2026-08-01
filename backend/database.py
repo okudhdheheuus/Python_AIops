@@ -79,6 +79,13 @@ async def ensure_sqlite_columns():
             conn.commit()
         except Exception:
             pass
+        # 多租户隔离：servers / workflows 添加 owner_id
+        for table_name in ("servers", "workflows"):
+            cols = {c[1] for c in conn.execute(f"PRAGMA table_info({table_name})")}
+            if "owner_id" not in cols:
+                conn.execute(f"ALTER TABLE {table_name} ADD COLUMN owner_id VARCHAR(36)")
+                conn.commit()
+                logging.getLogger("itops").info(f"Database: added missing column {table_name}.owner_id")
         # user_agent_configs 新表
         try:
             conn.execute("""CREATE TABLE IF NOT EXISTS user_agent_configs (
@@ -95,6 +102,27 @@ async def ensure_sqlite_columns():
             pass
     finally:
         conn.close()
+
+
+async def migrate_missing_columns():
+    """自动为 PostgreSQL 添加缺失的列（生产环境兼容）"""
+    if "sqlite" in DATABASE_URL:
+        return  # SQLite 走 ensure_sqlite_columns
+    try:
+        async with AsyncSessionLocal() as session:
+            for table, column, col_type in [
+                ("servers", "owner_id", "VARCHAR(36)"),
+                ("workflows", "owner_id", "VARCHAR(36)"),
+            ]:
+                try:
+                    await session.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}")
+                    )
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+    except Exception:
+        pass
 
 
 async def check_db_health() -> bool:

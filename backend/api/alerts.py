@@ -97,6 +97,15 @@ async def receive_alert(payload: WebhookPayload,db:AsyncSession = Depends(get_db
 
     return {"status":"success","results":results}
 
+def _alert_ownership_filter(stmt, current_user: User):
+    """非 admin 用户只看自己服务器的告警"""
+    if current_user.role != "admin":
+        user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
+        stmt = stmt.where(
+            (Alert.server_id == None) | (Alert.server_id.in_(user_server_ids))
+        )
+    return stmt
+
 @router.get("/alerts")
 async def list_alerts(
     db: AsyncSession = Depends(get_db),
@@ -104,9 +113,11 @@ async def list_alerts(
     status: str | None = None,
     page: int = Query(1,ge=1),
     page_size: int = Query(20,ge=1,le=100),
+    current_user: User = Depends(get_current_active_user),
 ):
     """查询告警列表，支持分页和筛选"""
     stmt = select(Alert).order_by(Alert.created_at.desc())
+    stmt = _alert_ownership_filter(stmt, current_user)
     if severity:
         stmt = stmt.where(Alert.severity==severity)
     if status:
@@ -124,11 +135,26 @@ async def list_alerts(
 
 
 @router.get("/alerts/stats")
-async def alert_stats(db:AsyncSession = Depends(get_db)):
+async def alert_stats(db:AsyncSession = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """告警统计（各级别数量）"""
-    total = (await db.execute(select(func.count()).select_from(select(Alert).subquery()))).scalar()
-    critical = (await db.execute(select(func.count()).where(Alert.severity=="critical",Alert.status=="firing"))).scalar()
-    warning = (await db.execute(select(func.count()).where(Alert.severity=="warning",Alert.status=="firing"))).scalar()
+    base = _alert_ownership_filter(select(Alert), current_user)
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    critical = (await db.execute(
+        select(func.count()).select_from(
+            _alert_ownership_filter(
+                select(Alert).where(Alert.severity=="critical",Alert.status=="firing"),
+                current_user
+            ).subquery()
+        )
+    )).scalar()
+    warning = (await db.execute(
+        select(func.count()).select_from(
+            _alert_ownership_filter(
+                select(Alert).where(Alert.severity=="warning",Alert.status=="firing"),
+                current_user
+            ).subquery()
+        )
+    )).scalar()
     return {"total" : total or 0,"critical_firing":critical or 0,"warning_firing": warning or 0}
 
 @router.put("/alerts/{alert_id}")
@@ -222,6 +248,13 @@ async def remediate_alert_manual(
     alert = (await db.execute(select(Alert).where(Alert.id == alert_id))).scalar_one_or_none()
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
+    # 非 admin 用户只能修复自己服务器的告警
+    if current_user.role != "admin" and alert.server_id:
+        owner_check = await db.execute(
+            select(Server).where(Server.id == alert.server_id, Server.owner_id == current_user.id)
+        )
+        if not owner_check.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="告警不存在")
     if alert.status != "firing":
         raise HTTPException(status_code=400, detail="只能修复活跃(firing)告警")
 

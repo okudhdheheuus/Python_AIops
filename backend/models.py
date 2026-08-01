@@ -41,6 +41,7 @@ class Server(Base):
     description = Column(Text,nullable=True)
     tags = Column(String(200),nullable=True)
     enabled = Column(Boolean,default=True)
+    owner_id = Column(String(36), nullable=True)  # 多租户隔离，NULL=管理员
     created_at = Column(DateTime(timezone=True),server_default=func.now())
     updated_at = Column(DateTime(timezone=True),onupdate=func.now())
 
@@ -52,6 +53,7 @@ class Workflow(Base):
     nodes = Column(Text,nullable=False) # JSON 字符串 存储节点列表
     edges = Column(Text,nullable=False) # JSON 字符串, 存储边
     is_template = Column(Boolean,default=False)
+    owner_id = Column(String(36), nullable=True)  # 多租户隔离，模板为 NULL
     created_at = Column(DateTime(timezone=True),server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

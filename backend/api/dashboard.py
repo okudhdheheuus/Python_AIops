@@ -14,21 +14,38 @@ async def get_dashboard_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # 服务器数量
-    result = await db.execute(select(func.count(Server.id)))
-    server_count = result.scalar() or 0
+    is_admin = current_user.role == "admin"
 
-    # Agent 类型数量（当前代码中硬编码了 generic 和 diagnostic）
-    agent_count = 2
+    # 服务器数量（非 admin 只看自己的）
+    server_q = select(func.count(Server.id))
+    if not is_admin:
+        server_q = server_q.where(Server.owner_id == current_user.id)
+    server_count = (await db.execute(server_q)).scalar() or 0
 
-    # 工作流数量（作为"任务"的代理指标）
-    result = await db.execute(select(func.count(Workflow.id)))
-    workflow_count = result.scalar() or 0
+    agent_count = 12  # 实际 Agent 类型数量
 
-    # 告警统计
-    total_alerts = await db.scalar(select(func.count(Alert.id))) or 0
-    firing_alerts = await db.scalar(
-        select(func.count(Alert.id)).where(Alert.status=="firing")) or 0
+    # 工作流数量（非 admin 看模板+自己的）
+    wf_q = select(func.count(Workflow.id))
+    if not is_admin:
+        wf_q = wf_q.where(
+            (Workflow.is_template == True) | (Workflow.owner_id == current_user.id)
+        )
+    workflow_count = (await db.execute(wf_q)).scalar() or 0
+
+    # 告警统计（非 admin 只看自己服务器的）
+    alert_base = select(Alert)
+    if not is_admin:
+        user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
+        alert_base = alert_base.where(
+            (Alert.server_id == None) | (Alert.server_id.in_(user_server_ids))
+        )
+    total_alerts = (await db.execute(select(func.count()).select_from(alert_base.subquery()))).scalar() or 0
+    firing_alerts = (await db.execute(
+        select(func.count()).select_from(
+            alert_base.where(Alert.status == "firing").subquery()
+        )
+    )).scalar() or 0
+
     return DashboardStats(
         servers=server_count,
         agents=agent_count,

@@ -27,7 +27,7 @@ from .core.logging import setup_logging
 from .core.middleware import RequestIDMiddleware, global_exception_handler
 from .core.rate_limit import RateLimitMiddleware
 from .core.redis import close_redis, get_redis
-from .database import Base, engine, ensure_sqlite_columns
+from .database import Base, engine, ensure_sqlite_columns, migrate_missing_columns
 from .metrics import get_metrics, track_request
 from .schedulers import shutdown_scheduler, start_scheduler
 
@@ -46,6 +46,7 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await ensure_sqlite_columns()
+    await migrate_missing_columns()
     logger.info("Database tables ensured")
     # 预热Redis连接
     try:

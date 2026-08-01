@@ -10,14 +10,14 @@ export default function DemoBanner() {
   if (!user || user.role === "admin") return null;
 
   return (
-    <div className="bg-yellow-600/10 border-b border-yellow-600/30 px-4 py-1.5 text-xs text-yellow-400 flex items-center gap-2">
+    <div className="bg-blue-600/10 border-b border-blue-500/30 px-4 py-1.5 text-xs text-blue-400 flex items-center gap-2">
       <AlertTriangle size={12} />
-      <span>演示环境 — 服务器信息已隐藏。完整功能请自行部署：</span>
+      <span>演示环境 — 数据与其他用户隔离。建议自行部署以获得完整控制权：</span>
       <a
         href="https://github.com/okudhdheheuus/Python_AIops"
         target="_blank"
         rel="noopener noreferrer"
-        className="text-blue-400 hover:text-blue-300 underline"
+        className="text-blue-300 hover:text-blue-200 underline"
       >
         GitHub
       </a>
