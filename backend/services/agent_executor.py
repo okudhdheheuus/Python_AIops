@@ -6,7 +6,7 @@ import time as time_module
 from sqlalchemy import select
 
 from ..database import AsyncSessionLocal
-from ..models import Alert, RemediationLog, Server, UserLLMConfig
+from ..models import Alert, RemediationLog, Server
 from .knowledge_service import build_rag_context
 from .llm_service import call_llm
 from .ssh_pool import pool
@@ -1012,18 +1012,14 @@ class AgentExecutor:
 
 
 async def trigger_auto_remediation(alert_id: str, alert_labels: dict, server_id: str | None = None, triggered_by: str = "auto"):
-    """告警触发后直接走 AI 修复——LLM 分析告警内容，生成修复命令，SSH 执行，写入日志"""
+    """告警触发后直接走 AI 修复——LLM 分析告警内容，生成修复命令，SSH 执行，写入日志。
+
+    自动修复使用系统级 API Key（DEEPSEEK_API_KEY 环境变量）。
+    如需自动修复功能，请在 docker-compose.yml 中配置该环境变量。
+    """
     try:
         logger.info(f"[自动修复] alert={alert_id} severity={alert_labels.get('severity')} server={server_id}")
-        # 查找任一已配置 API Key 的用户（自动修复无当前用户上下文）
-        user_llm_config = None
-        async with AsyncSessionLocal() as db:
-            user_llm_config = (
-                await db.execute(
-                    select(UserLLMConfig).where(UserLLMConfig.api_key.isnot(None), UserLLMConfig.api_key != "")
-                )
-            ).scalar_one_or_none()
-        executor = AgentExecutor(user_llm_config=user_llm_config)
+        executor = AgentExecutor()
         await executor.remediate_alert(
             alert_id=alert_id, server_id=server_id, triggered_by=triggered_by
         )
