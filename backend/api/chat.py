@@ -74,8 +74,12 @@ async def send_message(
     history.append({"role": "user", "content": user_message})
     # 加载用户LLM配置
     user_llm_config = await _load_user_llm_config(current_user.id)
-    # 选择provider
-    provider = get_llm_provider(user_llm_config)
+    # 选择provider（未配置 Key 时给出友好提示，避免 500）
+    try:
+        provider = get_llm_provider(user_llm_config)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     async def event_stream():
         full_response = ""
         try:
@@ -86,9 +90,10 @@ async def send_message(
             history.append({"role": "assistant", "content": full_response})
             await save_session(session_id, history)
             yield f"data: {json.dumps({'type': 'done', 'session_id': session_id}, ensure_ascii=False)}\n\n"
-        except Exception:
+        except Exception as e:
             logger.exception("chat streaming error")
-            yield f"data: {json.dumps({'type':'done','session_id':session_id},ensure_ascii=False)}\n\n"
+            err_msg = str(e) or "服务异常，请稍后重试"
+            yield f"data: {json.dumps({'type':'error','message': err_msg}, ensure_ascii=False)}\n\n"
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",

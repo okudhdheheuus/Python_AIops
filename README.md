@@ -131,6 +131,40 @@ Prometheus Webhook → 告警入库(去重) → RAG 知识检索 → LLM 生成�
 - **条件分支**：支持 `contains:` / `not_contains:` 表达式控制执行路径
 - **超时+重试**：每个节点独立配置超时和最大重试次数
 
+**节点参考**（12 个节点 = 9 个 AI 驱动 + 3 个实用操作节点）：
+
+| 节点 | 类别 | 需要 SSH | 需要 LLM | 输入 → 输出 |
+|------|------|:---:|:---:|------|
+| `monitor` | 采集 | ✅ | 可选 | 服务器 → CPU/内存/磁盘/负载指标 |
+| `diagnostic` | 诊断 | ✅ | ✅ | 故障描述 → 根因假设 + 证据链 |
+| `remediation` | 修复 | ✅ | ✅ | 告警 → 预检→修复→验证三步安全修复 |
+| `alert_analyzer` | 分析 | ❌ | ✅ | 告警 → 严重程度评估（P0-P4） |
+| `log_analyzer` | 分析 | ✅ | ✅ | 日志/事件 → 异常识别 |
+| `change_executor` | 变更 | 可选 | ✅ | 变更需求 → 变更计划 + 回滚方案 |
+| `doc_generator` | 生成 | 可选 | ✅ | 巡检数据 → Markdown 报告 |
+| `compliance_checker` | 检查 | ✅ | ✅ | 服务器 → 8 项安全合规评分 |
+| `shell_command` | **实用操作** | ✅ | ❌ | 命令 → 执行结果（stdout / exit_code） |
+| `health_check` | **实用操作** | ❌ | ❌ | URL → HTTP 状态码 / 响应耗时 |
+| `webhook` | **实用操作** | ❌ | ❌ | 上游输出 → POST 到指定 Webhook |
+| `generic` | 助手 | ❌ | ✅ | 自然语言 → 意图识别自动路由 |
+
+**典型工作流示例**：
+
+```
+服务健康监控：health_check(GET https://app.example.com/health)
+    → 条件分支(status 非 200)
+    → shell_command(systemctl restart app)
+    → webhook(推送钉钉/飞书告警)
+
+磁盘巡检告警：shell_command(df -h)
+    → 条件分支(usage > 90%)
+    → webhook(告警)
+
+日志错误扫描：shell_command(grep ERROR /var/log/app.log)
+    → log_analyzer(AI 分析异常)
+    → doc_generator(生成报告) → webhook(通知)
+```
+
 ### 📢 多通道告警通知
 
 | 通道 | 特性 |
@@ -146,6 +180,27 @@ Prometheus Webhook → 告警入库(去重) → RAG 知识检索 → LLM 生成�
 - **Prometheus `/metrics`**：HTTP 请求计数/延迟/并发数、LLM 调用量/延迟/Token 消耗、数据库连接数、活跃告警数
 - **结构化日志**：JSON 格式 + `request_id` 全链路追踪
 - **审计日志**：所有服务器操作自动记录用户名、操作类型、IP、时间
+
+---
+
+## 🔒 多租户数据隔离
+
+平台默认开启严格的**按归属数据隔离**（Multi-Tenant）。**所有角色——包括管理员——都只能看到自己名下服务器的数据**，不同租户/团队之间的数据互不可见。
+
+| 模块 | 隔离规则 |
+|------|---------|
+| **服务器** | 只看到自己创建的服务器（`owner_id` 匹配） |
+| **告警** | 只看到自己服务器的告警 + 无归属（`server_id = NULL`）的全局告警 |
+| **审计日志** | 只看到自己服务器的操作日志 |
+| **巡检记录** | 只看到自己服务器的巡检结果 |
+| **修复日志** | 只看到自己服务器的自动修复记录 |
+| **工作流** | 看到系统模板 + 自己创建的工作流 |
+| **通知渠道** | 只看到自己配置的渠道（不再共享全局渠道） |
+| **仪表盘** | 所有统计数字都按当前用户过滤 |
+
+> **为什么连管理员也隔离？** 服务器由用户 A 添加后，只有 A 能看到它；管理员同样看不到别人的服务器。系统模板（工作流模板、通用告警）对所有用户可见，用户可在此基础上复制构建自己的自动化。
+
+**归属字段**：`servers.owner_id`、`notification_channels.owner_id`、`workflows.owner_id`，均为创建者的用户 ID（UUID）。老数据的无归属记录会在初始化时归属到系统管理员账号。
 
 ---
 
@@ -453,6 +508,42 @@ Pull Request → Backend Job (pytest + ruff) + Frontend Job (eslint + tsc + buil
                      ↓
 Push to main  → Docker Build → 推送镜像到阿里云 ACR
 ```
+
+---
+
+## 🔐 安全说明
+
+- **认证**：JWT（HS256）Token + bcrypt 密码哈希（SHA-256 预哈希，绕过 bcrypt 72 字节限制）
+- **权限控制**：角色字段（`admin` / `viewer`）+ 多租户归属校验，双层控制
+- **LLM Key 隔离**：API Key 按用户独立存储，不全局共享，任何用户都看不到别人的 Key
+- **危险命令拦截**：13 条正则规则，禁止 `rm -rf`、`mkfs`、`dd if=`、fork 炸弹、`curl | sh` 等危险操作
+- **完整审计**：所有服务器操作记录用户名、动作、IP、时间，全链路可追溯
+- **生产建议**：务必修改 `SECRET_KEY`，通过 Nginx + HTTPS 反向代理，启用强密码策略
+
+---
+
+## ❓ 常见问题 FAQ
+
+**Q1：后端启动为什么慢？**
+A：首次启动要加载 RAG 向量模型（`sentence-transformers/all-MiniLM-L6-v2`，约 80MB），耗时约 20 秒，属正常现象。模型加载失败会自动降级为空上下文，不影响服务启动（fail-open）。
+
+**Q2：AI 功能提示"没有 API Key"？**
+A：LLM API Key 是**按用户隔离**的。登录后在「设置 → LLM API 配置」页面填入自己的 Key（支持 GLM / DeepSeek / OpenAI 兼容接口，可免费申请：https://open.bigmodel.cn/）。不配置 Key 时，非 LLM 功能（巡检、`shell_command`、`health_check`、`webhook` 等）仍可正常使用。
+
+**Q3：国内服务器下载模型很慢？**
+A：设置环境变量 `HF_ENDPOINT=https://hf-mirror.com`，使用 HuggingFace 国内镜像。
+
+**Q4：告警触发了但没收到通知？**
+A：先到「通知管理」页配置并点击**测试**自己的渠道（钉钉/企微/飞书/邮件），测试通过后告警才会推送。注意通知渠道只对本用户生效（多租户隔离）。
+
+**Q5：看不到别人添加的服务器/数据？**
+A：这是多租户隔离的预期行为——每个账号只能看到自己名下服务器的数据（含管理员）。想给某个账号分配数据，请用该账号自己添加。
+
+**Q6：修改 `.env` 后不生效？**
+A：Docker Compose 部署需要 `docker compose up -d` 重建容器；环境变量在容器启动时读取。
+
+**Q7：如何重置/找回管理员密码？**
+A：连接数据库执行 `UPDATE users SET hashed_password='<bcrypt哈希>' WHERE username='admin';`，哈希可用后端 `hash_password()` 生成（sha256 + bcrypt）。
 
 ---
 

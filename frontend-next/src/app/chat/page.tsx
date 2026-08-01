@@ -96,7 +96,10 @@ export default function ChatPage() {
         }),
       });
 
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error((errData as { detail?: string }).detail || `请求失败 (HTTP ${resp.status})`);
+      }
 
       const reader = resp.body?.getReader();
       if (!reader) throw new Error("No response body");
@@ -128,7 +131,7 @@ export default function ChatPage() {
               } else if (data.type === "done") {
                 setSessionId(data.session_id);
               } else if (data.type === "error") {
-                console.error("Chat error:", data.message);
+                setError(data.message || "服务异常");
               }
             } catch {
               // skip parse errors for incomplete chunks

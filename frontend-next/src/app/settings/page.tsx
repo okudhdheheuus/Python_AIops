@@ -231,7 +231,7 @@ export default function SettingsPage() {
                 type="text"
                 value={llmForm.api_base}
                 onChange={(e) => setLlmForm({ ...llmForm, api_base: e.target.value })}
-                placeholder="https://api.deepseek.com/v1"
+                placeholder="https://open.bigmodel.cn/api/paas/v4"
                 className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
@@ -241,7 +241,7 @@ export default function SettingsPage() {
                 type="text"
                 value={llmForm.model}
                 onChange={(e) => setLlmForm({ ...llmForm, model: e.target.value })}
-                placeholder="deepseek-v4-flash"
+                placeholder="glm-4-flash"
                 className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
