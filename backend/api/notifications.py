@@ -20,12 +20,8 @@ CHANNEL_TYPE_LABELS = {
 
 
 def _channels_ownership_filter(stmt, current_user: User):
-    """非 admin 用户只看自己的渠道"""
-    if current_user.role != "admin":
-        stmt = stmt.where(
-            (NotificationChannel.owner_id == current_user.id)
-            | (NotificationChannel.owner_id == None)
-        )
+    """每个用户只看自己的渠道"""
+    stmt = stmt.where(NotificationChannel.owner_id == current_user.id)
     return stmt
 
 
@@ -36,7 +32,7 @@ async def _require_channel_ownership(
     channel = await db.get(NotificationChannel, channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="渠道不存在")
-    if current_user.role != "admin" and channel.owner_id not in (None, current_user.id):
+    if channel.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="渠道不存在")
     return channel
 

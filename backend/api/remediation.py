@@ -18,10 +18,9 @@ router = APIRouter()
 
 
 def _remediation_log_ownership_filter(stmt, current_user: User):
-    """非 admin 用户只看自己服务器的修复日志"""
-    if current_user.role != "admin":
-        user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
-        stmt = stmt.where(RemediationLog.server_id.in_(user_server_ids))
+    """每个用户只看自己服务器的修复日志"""
+    user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
+    stmt = stmt.where(RemediationLog.server_id.in_(user_server_ids))
     return stmt
 
 
@@ -166,7 +165,7 @@ async def get_log(
     log = (await db.execute(select(RemediationLog).where(RemediationLog.id==log_id))).scalar_one_or_none()
     if not log:
         raise HTTPException(status_code=404, detail="日志不存在")
-    if current_user.role != "admin" and log.server_id:
+    if log.server_id:
         owner_check = await db.execute(
             select(Server).where(Server.id == log.server_id, Server.owner_id == current_user.id)
         )

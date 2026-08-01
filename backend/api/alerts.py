@@ -101,12 +101,11 @@ async def receive_alert(payload: WebhookPayload,db:AsyncSession = Depends(get_db
     return {"status":"success","results":results}
 
 def _alert_ownership_filter(stmt, current_user: User):
-    """非 admin 用户只看自己服务器的告警"""
-    if current_user.role != "admin":
-        user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
-        stmt = stmt.where(
-            (Alert.server_id == None) | (Alert.server_id.in_(user_server_ids))
-        )
+    """每个用户只看自己服务器的告警"""
+    user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
+    stmt = stmt.where(
+        (Alert.server_id == None) | (Alert.server_id.in_(user_server_ids))
+    )
     return stmt
 
 @router.get("/alerts")
@@ -171,8 +170,8 @@ async def update_alert(
     alert = (await db.execute(select(Alert).where(Alert.id == alert_id))).scalar_one_or_none()
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
-    # 非 admin 用户只能操作自己服务器的告警
-    if current_user.role != "admin" and alert.server_id:
+    # 每个用户只能操作自己服务器的告警
+    if alert.server_id:
         owner_check = await db.execute(
             select(Server).where(Server.id == alert.server_id, Server.owner_id == current_user.id)
         )
@@ -219,10 +218,9 @@ async def list_silence_rules(
     db:AsyncSession=Depends(get_db),
     current_user:User=Depends(get_current_active_user),
 ):
-    """获取静默规则（非 admin 只看自己创建的）"""
+    """获取静默规则（每个用户只看自己创建的）"""
     stmt = select(SilenceRule).order_by(SilenceRule.created_at.desc())
-    if current_user.role != "admin":
-        stmt = stmt.where(SilenceRule.created_by == current_user.username)
+    stmt = stmt.where(SilenceRule.created_by == current_user.username)
     result = await db.execute(stmt)
     rules = result.scalars().all()
     return {
@@ -250,7 +248,7 @@ async def delete_silence_rule(
     rule = await db.get(SilenceRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="规则不存在")
-    if current_user.role != "admin" and rule.created_by != current_user.username:
+    if rule.created_by != current_user.username:
         raise HTTPException(status_code=404, detail="规则不存在")
     await db.delete(rule)
     await db.commit()
@@ -266,8 +264,8 @@ async def remediate_alert_manual(
     alert = (await db.execute(select(Alert).where(Alert.id == alert_id))).scalar_one_or_none()
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
-    # 非 admin 用户只能修复自己服务器的告警
-    if current_user.role != "admin" and alert.server_id:
+    # 每个用户只能修复自己服务器的告警
+    if alert.server_id:
         owner_check = await db.execute(
             select(Server).where(Server.id == alert.server_id, Server.owner_id == current_user.id)
         )

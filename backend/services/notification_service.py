@@ -25,14 +25,14 @@ ALLOWED_TYPES = {"wecom", "dingtalk", "feishu", "email"}
 
 
 async def _get_channels_for_owner(owner_id: str | None = None):
-    """获取某用户的通知渠道（包含 owner_id=NULL 的管理员渠道）"""
+    """获取某用户自己的启用通知渠道（多租户隔离，不含全局渠道）"""
+    if not owner_id:
+        return []
     async with AsyncSessionLocal() as db:
-        stmt = select(NotificationChannel).where(NotificationChannel.enabled == True)
-        if owner_id:
-            stmt = stmt.where(
-                (NotificationChannel.owner_id == owner_id)
-                | (NotificationChannel.owner_id == None)
-            )
+        stmt = select(NotificationChannel).where(
+            NotificationChannel.enabled == True,
+            NotificationChannel.owner_id == owner_id,
+        )
         result = await db.execute(stmt)
         return result.scalars().all()
 

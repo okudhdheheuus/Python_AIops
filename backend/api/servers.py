@@ -16,17 +16,16 @@ from ..utils.security import get_current_active_user
 router = APIRouter()
 
 def _server_ownership_filter(stmt, current_user: User):
-    """非 admin 用户只能看到自己的服务器"""
-    if current_user.role != "admin":
-        stmt = stmt.where(Server.owner_id == current_user.id)
+    """每个用户只能看到自己的服务器"""
+    stmt = stmt.where(Server.owner_id == current_user.id)
     return stmt
 
 async def _require_server_ownership(server_id: str, db: AsyncSession, current_user: User) -> Server:
-    """获取服务器并校验所有权（非 admin 只能操作自己的）"""
+    """获取服务器并校验所有权（每个用户只能操作自己的）"""
     server = await db.get(Server, server_id)
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
-    if current_user.role != "admin" and server.owner_id != current_user.id:
+    if server.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Server not found")
     return server
 

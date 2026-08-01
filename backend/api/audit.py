@@ -10,13 +10,12 @@ router = APIRouter()
 
 
 def _audit_ownership_filter(stmt, current_user: User):
-    """非 admin 用户只看自己服务器的审计日志"""
-    if current_user.role != "admin":
-        user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
-        stmt = stmt.where(
-            AuditLog.resource_type == "server",
-            AuditLog.resource_id.in_(user_server_ids),
-        )
+    """每个用户只看自己服务器的审计日志"""
+    user_server_ids = select(Server.id).where(Server.owner_id == current_user.id)
+    stmt = stmt.where(
+        AuditLog.resource_type == "server",
+        AuditLog.resource_id.in_(user_server_ids),
+    )
     return stmt
 
 

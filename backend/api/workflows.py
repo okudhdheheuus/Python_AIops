@@ -15,11 +15,10 @@ router = APIRouter()
 
 
 def _workflow_ownership_filter(stmt, current_user: User):
-    """非 admin 用户看模板 + 自己的工作流"""
-    if current_user.role != "admin":
-        stmt = stmt.where(
-            (Workflow.is_template == True) | (Workflow.owner_id == current_user.id)
-        )
+    """每个用户看模板 + 自己的工作流"""
+    stmt = stmt.where(
+        (Workflow.is_template == True) | (Workflow.owner_id == current_user.id)
+    )
     return stmt
 
 # ===== 工作流CRUD =====
@@ -146,8 +145,6 @@ async def _check_workflow_access(workflow_id: str, db: AsyncSession, current_use
         raise HTTPException(status_code=404, detail="工作流不存在")
     if wf.is_template:
         return wf  # 模板所有人可见
-    if current_user.role == "admin":
-        return wf  # admin 可见全部
     if wf.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="工作流不存在")
     return wf
