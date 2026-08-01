@@ -15,8 +15,8 @@ const links = [
   { href: "/agents", label: "智能代理", icon: Bot },
   { href: "/workflows", label: "工作流", icon: Workflow },
   { href: "/knowledge", label: "知识库", icon: BookOpen },
-  { href: "/audit", label: "审计日志", icon: FileText },
-  { href: "/notifications", label: "通知管理", icon: BellRing },
+  { href: "/audit", label: "审计日志", icon: FileText, adminOnly: true },
+  { href: "/notifications", label: "通知管理", icon: BellRing, adminOnly: true },
   { href: "/remediation", label: "修复记录", icon: ShieldCheck },
 ];
 
@@ -49,7 +49,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1 flex-1">
-        {links.map(({ href, label, icon: Icon }) => {
+        {links.filter(l => !l.adminOnly || user?.role === "admin").map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link

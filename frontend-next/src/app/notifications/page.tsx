@@ -201,6 +201,15 @@ export default function NotificationsPage() {
       </div>
     );
 
+  if (user?.role !== "admin")
+    return (
+      <div className="p-8 text-center text-gray-500 mt-20">
+        <BellRing size={48} className="mx-auto mb-4 opacity-50" />
+        <p className="text-gray-400">通知管理仅限管理员配置</p>
+        <p className="text-xs text-gray-600 mt-2">演示环境不支持此功能</p>
+      </div>
+    );
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
